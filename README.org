@@ -14,7 +14,8 @@ virtual environment is recommended.
 #+begin_example
 python3 -m venv venv
 source venv/bin/activiate
-cd pixsi
+git clone https://github.com/rennney/PixSi.git
+cd PixSi
 pip install -e .
 #+end_example
 
@@ -23,7 +24,7 @@ pip install -e .
 The ~pixsi~ command line user interface provides online help:
 
 #+begin_src shell :exports both :results output code :wrap example
-pochoir
+pixsi
 #+end_src
 
 #+RESULTS:

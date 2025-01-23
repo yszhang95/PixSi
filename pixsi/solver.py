@@ -43,18 +43,20 @@ def objective_function(params, measurements, kernel):
 
             f=(m[1]-c1[m[0]])**2
             fs.append(f)
+    #W=np.array([1,1,1,1,1])
     return np.sum(fs)
 
 
 def solver_scipy(block,kernel):
     options = {
-        'maxiter': 1000,  # Increase maximum number of iterations
-        'ftol': 1e-2,     # Set a tighter tolerance for convergence
+        'maxiter': 10000,  # Increase maximum number of iterations
+        'ftol': 1e-9,     # Set a tighter tolerance for convergence
         'disp': True,      # Enable verbose output to monitor progress
         'eps': 0.01       # define Minimizer step
     }
     initial_guess = [block[0][0]]+[0 for _ in range(len(block)-1)]
     bounds = [(0, None) for _ in initial_guess]
+    bounds[1]=(1,None) # at least something has to be absorbed at or after the trigger even if charge was accumulated before
     print("Considered Block: ",block)
     print("Initial Guess: ",initial_guess)
     result = minimize(objective_function,x0=initial_guess,args=(block, kernel),method="L-BFGS-B",options=options,bounds=bounds) #'L-BFGS-B' , SLSQP

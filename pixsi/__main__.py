@@ -27,9 +27,9 @@ def cli(ctx, store, outstore):
 @click.option("-k","--kernelresp",type=click.Path(),required=False,
               help="Path to Field Response")
 @click.pass_context
-def run(ctx,input,kernelresp):
+def run_1D(ctx,input,kernelresp):
     '''
-    Runs Toy Simulation + Reconstruction 
+    Runs Toy Simulation + Reconstruction for a single pixel
     '''
     
     if not kernelresp:
@@ -62,7 +62,7 @@ def run(ctx,input,kernelresp):
     M,q=pixsi.toy_sim.trigger(current_response,trsh)
     b=np.array(M)
     plt.figure(figsize=(12, 6))
-    plt.plot(time_steps, true_signal*150, label="True Signal (Charge)", linestyle="--")
+    plt.plot(time_steps, true_signal, label="True Signal (Charge)", linestyle="--")
     plt.plot(time_steps, current_response, label="True Current (Current)")
     plt.scatter(b[:,0]*0.1,b[:,1], label="True Measurement")
     plt.xlim(0,13)
@@ -124,6 +124,27 @@ def run(ctx,input,kernelresp):
     plt.ylim(0,1.5)
     plt.show()
 
+@cli.command()
+@click.option("-i","--input", type=str, required=False,
+              help="Placeholder")
+@click.option("-k","--kernelresp",type=click.Path(),required=False,
+              help="Path to Field Response")
+@click.pass_context
+def run_2D(ctx,input,kernelresp):
+    '''
+    Runs Toy Simulation + Reconstruction for two MIP tracks in pseudo 2D
+    '''
+    if not kernelresp:
+        print("Path to FR was not provided. Using Toy Kernel")
+        kernel=pixsi.toy_sim.kernel()
+    else:
+        kernel=pixsi.toy_sim.getKernel(kernelresp)
+    import matplotlib.pyplot as plt
+    import numpy as np
+    #define example true signal
+    track1 = pixsi.toy_sim.sim_MIP(0,0,10,10)
+    
+    
 
 def main():
     cli(obj=None)

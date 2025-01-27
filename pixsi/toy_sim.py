@@ -1,5 +1,6 @@
 import numpy as np
-from .kernels import kernel
+from .kernels import *
+import math
 
 def current(q, z):
     c = kernel() * q
@@ -63,3 +64,34 @@ def trigger(c,trsh=200):
             busy=False
             hold=int(1.1/0.1)+dead
     return meas,actualq
+
+
+def sim_MIP(t_start,x_start,length,angle):
+    t_small = 0.1 # us
+    z_small = 0.16 # mm
+    angle_radians = math.radians(angle)
+    dl_small = z_small/math.sin(angle_radians)
+    dl_pix = z_small/math.cos(angle_radians)
+    dq_small = dl_small*5000 # 5000 e/mm MIP
+    t_tmp = t_start
+    pixel = np.zeros(1600)
+    skipped_pix=int(np.ceil(x_start/4.))
+    if skipped_pix>0:
+        track=np.array([np.zeros(1600) for i in range(skipped_pix)])
+    else:
+        track=[]
+    l_tmp = max(0,x_start-skipped_pix*4.)
+    l_tot=0
+    print(l_tmp,dl_pix,track,length*math.cos(angle_radians))
+    while l_tot<length*math.cos(angle_radians) and t_tmp<1600:
+        if l_tmp>=4.:
+            track.append(pixel)
+            pixel = np.zeros(1600)
+            l_tmp=0
+        pixel[t_tmp]=dq_small
+        #print(l_tmp)
+        t_tmp+=1
+        l_tmp+=dl_pix
+        l_tot+=dl_pix
+    if len(np.nonzero(pixel)[0])>0:track.append(pixel)
+    return track

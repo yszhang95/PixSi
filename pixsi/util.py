@@ -19,8 +19,10 @@ def uniform_charge_cum_current(q, t_start, time_int,kernel):
     for i in range(dt):
         current[i:i+kernel_len] += c
     c_cum=np.cumsum(current)
-    tot_c[t_start-kernel_len:t_start-kernel_len+len(current)]=c_cum
-    tot_c[t_start-kernel_len+len(current):]=c_cum[-1]
+    start=max(0,t_start-kernel_len)
+    end=min(len(tot_c),t_start-kernel_len+len(current))
+    tot_c[start:end]=c_cum[len(current)-(end-start):]
+    if end<len(tot_c): tot_c[end:]=c_cum[-1]
     return tot_c
 
 

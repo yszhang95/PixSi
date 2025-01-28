@@ -1,5 +1,5 @@
 class Hit:
-    def __init__(self, charge, start_time, delta_time):
+    def __init__(self, charge, start_time, end_time):
         """
         Initialize a Hit object. Charge is uniform on a given interval
 

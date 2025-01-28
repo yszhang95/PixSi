@@ -59,6 +59,6 @@ def solver_scipy(block,kernel):
     bounds[1]=(1,None) # at least something has to be absorbed at or after the trigger even if charge was accumulated before
     print("Considered Block: ",block)
     print("Initial Guess: ",initial_guess)
-    result = minimize(objective_function,x0=initial_guess,args=(block, kernel),method="L-BFGS-B",options=options,bounds=bounds) #'L-BFGS-B' , SLSQP
+    result = minimize(objective_function,x0=initial_guess,args=(block, kernel),method="SLSQP",options=options,bounds=bounds) #'L-BFGS-B' , SLSQP
     return result.x
     

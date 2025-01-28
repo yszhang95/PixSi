@@ -24,7 +24,7 @@ def compute_current(signal, kernel, time_steps):
     current = np.zeros(len(time_steps))
     for t, charge in enumerate(signal):
         if charge > 0:
-            current[t - kernel_len + 1 : t + 1] += charge * kernel
+            current[max(0,t - kernel_len + 1) : t + 1] += charge * kernel[len(kernel)-(t+1-max(0,t - kernel_len + 1)):]
     return current
     
 def trigger(c,trsh=200):
@@ -77,12 +77,11 @@ def sim_MIP(t_start,x_start,length,angle):
     pixel = np.zeros(1600)
     skipped_pix=int(np.ceil(x_start/4.))
     if skipped_pix>0:
-        track=np.array([np.zeros(1600) for i in range(skipped_pix)])
+        track=[np.zeros(1600) for i in range(skipped_pix)]
     else:
         track=[]
     l_tmp = max(0,x_start-skipped_pix*4.)
     l_tot=0
-    print(l_tmp,dl_pix,track,length*math.cos(angle_radians))
     while l_tot<length*math.cos(angle_radians) and t_tmp<1600:
         if l_tmp>=4.:
             track.append(pixel)

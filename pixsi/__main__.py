@@ -139,13 +139,77 @@ def run_2D(ctx,input,kernelresp):
         kernel=pixsi.toy_sim.kernel()
     else:
         kernel=pixsi.toy_sim.getKernel(kernelresp)
+    kernel=kernel[kernel!=0]
     import matplotlib.pyplot as plt
     import numpy as np
     #define example true signal
-    track1 = pixsi.toy_sim.sim_MIP(0,0,10,10)
-    
-    
-
+    track1 = pixsi.toy_sim.sim_MIP(150,0,10,10)
+    track2 = pixsi.toy_sim.sim_MIP(250,10,10,10)
+    pixels = np.array([a + b for a, b in zip(track1, track2)])
+    FinalHits = []
+    for n,p in enumerate(pixels):
+        if n>0:
+            continue
+        trueHits=[]
+        rawHits=[]
+        spHits=[]
+        #Simulate raw measurements
+        trsh=5
+        if sum(p)==0:
+            continue
+        time_steps=np.linspace(0, 160, 1600)
+        current_response = pixsi.toy_sim.compute_current(p, kernel, time_steps)
+        M,q=pixsi.toy_sim.trigger(current_response,trsh)
+        bb=np.array(M)
+        #plt.scatter(bb[:,0],bb[:,1])
+        #plt.show()
+        #Devide Measurements into blocks
+        M_blocks=pixsi.preproc.process_measurements(M,trsh)
+        #Create True Hits
+        for block in M_blocks:
+            print(block)
+            true_times=np.nonzero(p)[0]
+            chg=true_times[0]
+            tr=block[0][0]
+            kl=len(kernel)
+            n = len(block)-1
+            slices = [(chg,tr+kl-chg)]+[(tr+kl-chg,tr+kl-chg+16)]+[(tr+kl-chg+16+28*i,tr+kl-chg+16+28*(i+1)) for i in range(n-2)]
+            for s in slices:
+                dt_true = s[1]-s[0]
+                if dt_true==0: continue
+                avg=np.sum(p[slice(s[0],s[1])])/dt_true
+                h = pixsi.hit.Hit(avg,s[0],s[1])
+                trueHits.append(h)
+            true_times[chg:slices[-1][1]+1]=0
+        #Create Raw Hits
+        for block in M_blocks:
+            for n,m in enumerate(block):
+                if n==0 or n==len(block)-1:
+                    continue
+                if n==1:
+                    h=pixsi.hit.Hit(m[1]/16,m[0]-16,m[0])
+                else:
+                    h=pixsi.hit.Hit(m[1]/28,m[0]-28,m[0])
+                rawHits.append(h)
+        #Fit each block
+        RecoveredSignals=[]
+        for n,block in enumerate(M_blocks):
+            result = pixsi.solver.solver_scipy(block,kernel)
+            RecoveredSignals.append(result)
+        #Create SP Hits
+        for r,m in zip(RecoveredSignals,M_blocks):
+            kl=len(kernel)
+            Q=r[1:]
+            t_st=r[0]
+            t=m[0][0]+kl
+            for n,q in enumerate(Q):
+                h=pixsi.hit.Hit(q,t_st,t)
+                spHits.append(h)
+                tmp=t_st
+                t_st=t
+                t=t+16 if n==0 else t+28
+        #Save hits
+        FinalHits.append((n,[trueHits,rawHits,spHits]))
 def main():
     cli(obj=None)
 

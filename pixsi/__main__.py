@@ -219,6 +219,7 @@ def run_2D(ctx,input,kernelresp):
                 t=t+16 if n==0 else t+28
         #Save hits
         FinalHits.append((pn,[trueHits,rawHits,spHits]))
+    
     for n,p in enumerate(FinalHits):
         if n!=1:
             continue
@@ -239,7 +240,111 @@ def run_2D(ctx,input,kernelresp):
         plt.plot(time,dense_sp,label="SP Hits")
         plt.legend()
         plt.show()
+    import pickle
+    pickled_object = pickle.dumps(FinalHits)
+    np.savez("FinalHits.npz", data=pickled_object)
+    #loaded_data = np.load("my_object.npz")["data"]
+    #loaded_object = pickle.loads(loaded_data)
+  
+
+@cli.command()
+@click.option("-i","--input", type=str, required=False,
+              help="Placeholder")
+@click.pass_context
+def eval(ctx,input):
+    '''
+    Evaluate Hits
+    '''
+    from pixsi.hit import Hit
+    import numpy as np
+    import pickle
+    loaded_data = np.load(input)["data"]
+    loaded_hits = pickle.loads(loaded_data)
+    nonzerohits_true=[]
+    nonzerohits_raw=[]
+    nonzerohits_sp=[]
+    
+    totCharge_true=[]
+    totCharge_raw=[]
+    totCharge_sp=[]
+    
+    tStart_true=[]
+    tStart_raw=[]
+    tStart_sp=[]
+    
+    for p in loaded_hits:
+        th=p[1][0]
+        rh=p[1][1]
+        sph=p[1][2]
+        nonzerohits_true.append(np.sum([t.charge>1 for t in th]))
+        nonzerohits_raw.append(np.sum([t.charge>1 for t in rh]))
+        nonzerohits_sp.append(np.sum([t.charge>1 for t in sph]))
         
+        totCharge_true.append(np.sum([t.charge*(t.end_time-t.start_time) for t in th]))
+        totCharge_raw.append(np.sum([t.charge*(t.end_time-t.start_time) for t in rh]))
+        totCharge_sp.append(np.sum([t.charge*(t.end_time-t.start_time) for t in sph]))
+        
+        tStart_true.append(th[0].start_time)
+        tStart_raw.append(rh[0].start_time)
+        tStart_sp.append(sph[0].start_time)
+        
+    x=np.linspace(0,len(loaded_hits),len(loaded_hits))
+    
+    import matplotlib.pyplot as plt
+    
+    fig, axs = plt.subplots(3, 1, figsize=(10, 8))
+    
+    axs[0].plot(x, nonzerohits_true, label="TrueHits", color='b')
+    axs[0].plot(x, nonzerohits_raw, label="RawHits", color='g')
+    axs[0].plot(x, nonzerohits_sp, label="SPHits", color='r')
+    axs[0].set_title("Number of Hits with Charge>1 per Pixel")
+    axs[0].set_xlabel("Pixel")
+    axs[0].legend()
+    axs[0].grid()
+
+    axs[1].plot(x, totCharge_true, label="TrueHits", color='b')
+    axs[1].plot(x, totCharge_raw, label="RawHits", color='g')
+    axs[1].plot(x, totCharge_sp, label="SPHits", color='r')
+    axs[1].set_title("Total Charge per Pixel")
+    axs[1].set_xlabel("Pixel")
+    axs[1].legend()
+    axs[1].grid()
+
+    axs[2].plot(x, tStart_true, label="TrueHits", color='b')
+    axs[2].plot(x, tStart_raw, label="RawHits", color='g')
+    axs[2].plot(x, tStart_sp, label="SPHits", color='r')
+    axs[2].set_title("Start Time of First Hit per Pixel")
+    axs[2].set_xlabel("Pixel")
+    axs[2].legend()
+    axs[2].grid()
+
+
+    plt.tight_layout()
+    plt.show()
+    
+    
+    for n,p in enumerate(loaded_hits):
+        if n!=0:
+            continue
+        print("Pixel ",p[0])
+        print("True Hits: ",p[1][0])
+        print("Raw Hits: ",p[1][1])
+        print("SP Hits: ",p[1][2])
+        dense_true = pixsi.util.make_dense_WF(p[1][0])
+        dense_raw = pixsi.util.make_dense_WF(p[1][1])
+        dense_sp = pixsi.util.make_dense_WF(p[1][2])
+        print("Total Charge on Pixel")
+        print("True: ",np.sum(dense_true))
+        print("Raw: ",np.sum(dense_raw))
+        print("SP: ",np.sum(dense_sp))
+        time=np.linspace(0,160,1600)
+        plt.plot(time,dense_true,label="True Signal")
+        plt.plot(time,dense_raw,label="Raw Hits")
+        plt.plot(time,dense_sp,label="SP Hits")
+        plt.legend()
+        plt.show()
+    
+  
 def main():
     cli(obj=None)
 

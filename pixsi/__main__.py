@@ -47,8 +47,8 @@ def run_1D(ctx,input,kernelresp):
     true_signal[93:94] = 7.0
     true_signal[94:95] = 2.0# Example true signal
     #true_signal[187:187+4+1] = 1.0
-    plt.plot(time_steps,kernel)
-    plt.plot(time_steps,np.cumsum(kernel))
+    plt.plot(time_steps,kernel*100)
+    plt.plot(time_steps,np.cumsum(kernel*100))
     plt.title("Current Kernel")
     plt.xlabel("Time (us)")
     #plt.xlim(0,5)
@@ -138,49 +138,58 @@ def run_2D(ctx,input,kernelresp):
         print("Path to FR was not provided. Using Toy Kernel")
         kernel=pixsi.toy_sim.kernel()
     else:
-        kernel=pixsi.toy_sim.getKernel(kernelresp)
+        kernel=pixsi.toy_sim.getKernel(kernelresp)*100
     kernel=kernel[kernel!=0]
     import matplotlib.pyplot as plt
     import numpy as np
     #define example true signal
-    track1 = pixsi.toy_sim.sim_MIP(150,0,10,10)
-    track2 = pixsi.toy_sim.sim_MIP(250,10,10,10)
-    pixels = np.array([a + b for a, b in zip(track1, track2)])
+    track1 = pixsi.toy_sim.sim_MIP(150,0,80,45)
+    track2 = pixsi.toy_sim.sim_MIP(190,0,80,10)
+    print("Total Track1 Charge: ",np.sum(np.array([np.sum(i) for i in track1])))
+    if len(track2)>0: print("Total Track2 Charge: ",np.sum(np.array([np.sum(i) for i in track2])))
+    if len(track2)>0 and len(track1)<len(track2):
+        arr = [np.zeros(1600) for _ in range(len(track2)-len(track1))]
+        track1=track1+arr
+    pixels = np.array([a + b for a, b in zip(track1, track2)]) if len(track2)>0 else np.array(track1)
+    print("Used Pixels: ",len(pixels))
     FinalHits = []
-    for n,p in enumerate(pixels):
-        if n>0:
-            continue
+    for pn,p in enumerate(pixels):
+        #if pn>0:
+        #    continue
         trueHits=[]
         rawHits=[]
         spHits=[]
         #Simulate raw measurements
-        trsh=5
+        trsh=5000
         if sum(p)==0:
             continue
-        time_steps=np.linspace(0, 160, 1600)
+        time_steps=np.linspace(0, 1600, 1600)
         current_response = pixsi.toy_sim.compute_current(p, kernel, time_steps)
         M,q=pixsi.toy_sim.trigger(current_response,trsh)
+        #plt.plot(time_steps,p,label="Charge")
         bb=np.array(M)
-        #plt.scatter(bb[:,0],bb[:,1])
+        #plt.plot(time_steps,current_response,label="Current")
+        #plt.scatter(bb[:,0],bb[:,1],label="Measurement")
+        #plt.legend()
         #plt.show()
         #Devide Measurements into blocks
         M_blocks=pixsi.preproc.process_measurements(M,trsh)
         #Create True Hits
         for block in M_blocks:
-            print(block)
             true_times=np.nonzero(p)[0]
+            if len(true_times)==0 : continue
             chg=true_times[0]
             tr=block[0][0]
             kl=len(kernel)
             n = len(block)-1
-            slices = [(chg,tr+kl-chg)]+[(tr+kl-chg,tr+kl-chg+16)]+[(tr+kl-chg+16+28*i,tr+kl-chg+16+28*(i+1)) for i in range(n-2)]
+            slices = [(chg,tr+kl)]+[(tr+kl,tr+kl+16)]+[(tr+kl+16+28*i,tr+kl+16+28*(i+1)) for i in range(n-2)]
             for s in slices:
                 dt_true = s[1]-s[0]
                 if dt_true==0: continue
                 avg=np.sum(p[slice(s[0],s[1])])/dt_true
                 h = pixsi.hit.Hit(avg,s[0],s[1])
                 trueHits.append(h)
-            true_times[chg:slices[-1][1]+1]=0
+            p[chg:slices[-1][1]]=0
         #Create Raw Hits
         for block in M_blocks:
             for n,m in enumerate(block):
@@ -203,13 +212,34 @@ def run_2D(ctx,input,kernelresp):
             t_st=r[0]
             t=m[0][0]+kl
             for n,q in enumerate(Q):
-                h=pixsi.hit.Hit(q,t_st,t)
+                h=pixsi.hit.Hit(q/(t-t_st),t_st,t)
                 spHits.append(h)
                 tmp=t_st
                 t_st=t
                 t=t+16 if n==0 else t+28
         #Save hits
-        FinalHits.append((n,[trueHits,rawHits,spHits]))
+        FinalHits.append((pn,[trueHits,rawHits,spHits]))
+    for n,p in enumerate(FinalHits):
+        if n!=1:
+            continue
+        print("Pixel ",p[0])
+        print("True Hits: ",p[1][0])
+        print("Raw Hits: ",p[1][1])
+        print("SP Hits: ",p[1][2])
+        dense_true = pixsi.util.make_dense_WF(p[1][0])
+        dense_raw = pixsi.util.make_dense_WF(p[1][1])
+        dense_sp = pixsi.util.make_dense_WF(p[1][2])
+        print("Total Charge on Pixel")
+        print("True: ",np.sum(dense_true))
+        print("Raw: ",np.sum(dense_raw))
+        print("SP: ",np.sum(dense_sp))
+        time=np.linspace(0,160,1600)
+        plt.plot(time,dense_true,label="True Signal")
+        plt.plot(time,dense_raw,label="Raw Hits")
+        plt.plot(time,dense_sp,label="SP Hits")
+        plt.legend()
+        plt.show()
+        
 def main():
     cli(obj=None)
 

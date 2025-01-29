@@ -7,7 +7,6 @@ def getKernel(path):
     
     time_05 = np.arange(0, len(current) * 0.05, 0.05)[:-1]
     time_1 = np.arange(0, len(current) * 0.05, 0.1)
-    print(len(current),len(time_05),len(time_1))
     interpolator = interp1d(time_05, current, kind='linear')
     current_sampled = interpolator(time_1)#[:1600]
     #modification to fit current simulation constraints

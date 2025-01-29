@@ -1,5 +1,6 @@
 import numpy as np
 import math
+from .hit import Hit
 
 def uniform_charge_cum_current(q, t_start, time_int,kernel):
     tot_c = np.zeros(1600)
@@ -52,30 +53,10 @@ def modify_signal(signal, window_size=28):
     
     return modified_signal
 
-def sim_MIP(t_start,x_start,length,angle):
-    t_small = 0.1 # us
-    z_small = 0.16 # mm
-    dl_small = z_small/math.sin(angle)
-    dl_pix = z_small/math.cos(angle)
-    dq_small = dl_small*5000 # 5000 e/mm MIP
-    t_tmp = t_start
-    l_swich =0
-    pixel = np.zeros(0,160,1600)
-    skipped_pix=int(np.ceil(x_start/4.))
-    if skipped_pix>0:
-        track=np.array([np.zeros(0,160,1600) for i in range(skipped_pix)])
-    else:
-        track=[]
-    l_tmp = x_start-skipped_pix*4.
-    l_tot=0
-    while l_tmp<lenght*math.cos(angle):
-        if l_tmp>=4.:
-            track.append(pixel)
-            pixel = np.zeros(0,160,1600)
-        pixel[t_tmp]=dq_small
-        t_tmp+=1
-        l_tmp+=dl_pix
-        l_tot+=dl_pix
-    return track
+def make_dense_WF(arr):
+    dense_arr = np.zeros(1600)
+    for i in arr:
+        dense_arr[int(i.start_time):int(i.end_time)]=i.charge
+    return dense_arr
         
     

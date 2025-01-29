@@ -43,8 +43,9 @@ def objective_function(params, measurements, kernel):
 
             f=(m[1]-c1[m[0]])**2
             fs.append(f)
-    #W=np.array([1,1,1,1,1])
-    return np.sum(fs)
+    W=np.array([1 for _ in range(len(fs))])
+    
+    return np.sum(fs*W)+abs(np.sum(params))
 
 
 def solver_scipy(block,kernel):
@@ -52,13 +53,15 @@ def solver_scipy(block,kernel):
         'maxiter': 10000,  # Increase maximum number of iterations
         'ftol': 1e-9,     # Set a tighter tolerance for convergence
         'disp': True,      # Enable verbose output to monitor progress
-        'eps': 0.01       # define Minimizer step
     }
     initial_guess = [block[0][0]]+[0 for _ in range(len(block)-1)]
+    initial_guess[1]=1
     bounds = [(0, None) for _ in initial_guess]
+    bounds[0]=(block[0][0]-28,block[0][0]+len(kernel))
     bounds[1]=(1,None) # at least something has to be absorbed at or after the trigger even if charge was accumulated before
     print("Considered Block: ",block)
     print("Initial Guess: ",initial_guess)
-    result = minimize(objective_function,x0=initial_guess,args=(block, kernel),method="SLSQP",options=options,bounds=bounds) #'L-BFGS-B' , SLSQP
+    result = minimize(objective_function,x0=initial_guess,args=(block, kernel),method="Powell",options=options,bounds=bounds) #'L-BFGS-B' , SLSQP
+        #non gradient optimizers : 'Nelder-Mead' , 'Powell'
     return result.x
     

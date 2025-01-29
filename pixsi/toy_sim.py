@@ -71,7 +71,7 @@ def sim_MIP(t_start,x_start,length,angle):
     z_small = 0.16 # mm
     angle_radians = math.radians(angle)
     dl_small = z_small/math.sin(angle_radians)
-    dl_pix = z_small/math.cos(angle_radians)
+    dl_pix = dl_small*math.cos(angle_radians)
     dq_small = dl_small*5000 # 5000 e/mm MIP
     t_tmp = t_start
     pixel = np.zeros(1600)

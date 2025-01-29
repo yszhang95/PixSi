@@ -39,6 +39,8 @@ Options:
   --help               Show this message and exit.
 
 Commands:
-  run  Runs Toy Simulation + Reconstruction
+  eval    Evaluate Hits
+  run-1d  Runs Toy Simulation + Reconstruction for a single pixel
+  run-2d  Runs Toy Simulation + Reconstruction for two MIP tracks in pseudo...
 #+end_example
 

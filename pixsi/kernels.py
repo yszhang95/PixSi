@@ -16,6 +16,21 @@ def getKernel(path):
     return res
     #nonzeroIdxes = np.nonzero(current_sampled)[0]
 
+def getKernel_Ind(path):
+    #currently supports specific format. Needs generalization
+    current = np.load(path)['pixel'][191-9]
+    
+    time_05 = np.arange(0, len(current) * 0.05, 0.05)[:-1]
+    time_1 = np.arange(0, len(current) * 0.05, 0.1)
+    interpolator = interp1d(time_05, current, kind='linear')
+    current_sampled = interpolator(time_1)#[:1600]
+    #modification to fit current simulation constraints
+    nonzeroIdxes = np.nonzero(current_sampled)[0]
+    res=np.zeros(1600)
+    res[:100]=current_sampled[nonzeroIdxes[-1]-100:nonzeroIdxes[-1]]
+    return res
+    #nonzeroIdxes = np.nonzero(current_sampled)[0]
+
 
 def kernel_3us():
     # For 3 us kernel sigma is 1.5 and drft is 5/speed

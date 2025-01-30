@@ -94,3 +94,60 @@ def sim_MIP(t_start,x_start,length,angle):
         l_tot+=dl_pix
     if len(np.nonzero(pixel)[0])>0:track.append(pixel)
     return track
+
+def simActivity_toy(pixels,kernel_middle,kernel_adj):
+    time_steps=np.linspace(0, 1600, 1600)
+    currents = np.array([np.zeros(1600) for _ in range(len(pixels))])
+    for p in range(1,len(pixels)-1):
+        current_response_middle = compute_current(pixels[p], kernel_middle, time_steps)
+        current_response_side = compute_current(pixels[p], kernel_adj, time_steps)
+        currents[p-1]+=current_response_side
+        currents[p]+=current_response_middle
+        currents[p+1]+=current_response_side
+    trsh=5000
+    from .preproc import process_measurements as PreProc
+    from .hit import Hit
+    measurements = []
+    blocks = []
+    hits=[]
+    for nc,c in enumerate(currents):
+        if np.sum(c)<trsh:
+            measurements.append([])
+            continue
+        M,q=trigger(c,trsh)
+        M_blocks=PreProc(M,trsh)
+        measurements.append(M)
+        blocks.append(M_blocks)
+        trueHits=[]
+        rawHits=[]
+        #Create True Hits
+        for block in M_blocks:
+            true_times=np.nonzero(p)[0]
+            if len(true_times)==0 : continue
+            chg=true_times[0]
+            tr=block[0][0]
+            kl=len(kernel_middle)
+            n = len(block)-1
+            slices = [(chg,tr+kl)]+[(tr+kl,tr+kl+16)]+[(tr+kl+16+28*i,tr+kl+16+28*(i+1)) for i in range(n-2)]
+            for s in slices:
+                dt_true = s[1]-s[0]
+                if dt_true==0: continue
+                avg=np.sum(c[slice(s[0],s[1])])/dt_true
+                h = Hit(avg,s[0],s[1])
+                trueHits.append(h)
+            c[chg:slices[-1][1]]=0
+        #Create Raw Hits
+        for block in M_blocks:
+            for n,m in enumerate(block):
+                if n==0 or n==len(block)-1:
+                    continue
+                if n==1:
+                    h=Hit(m[1]/16,m[0]-16,m[0])
+                else:
+                    h=Hit(m[1]/28,m[0]-28,m[0])
+                rawHits.append(h)
+        hits.append([nc,[trueHits,rawHits]])
+    return measurements,blocks,hits
+    
+
+

@@ -59,4 +59,9 @@ def make_dense_WF(arr):
         dense_arr[int(i.start_time):int(i.end_time)]=i.charge
     return dense_arr
         
+
+def simActivity(chages,kernel_middle,kernel_adj):
+    
+    return None
+    
     

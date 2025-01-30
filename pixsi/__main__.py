@@ -144,7 +144,7 @@ def run_2D(ctx,input,kernelresp):
     import numpy as np
     #define example true signal
     track1 = pixsi.toy_sim.sim_MIP(150,0,80,45)
-    track2 = pixsi.toy_sim.sim_MIP(190,0,80,10)
+    track2 = pixsi.toy_sim.sim_MIP(190,20,80,10)
     print("Total Track1 Charge: ",np.sum(np.array([np.sum(i) for i in track1])))
     if len(track2)>0: print("Total Track2 Charge: ",np.sum(np.array([np.sum(i) for i in track2])))
     if len(track2)>0 and len(track1)<len(track2):
@@ -218,7 +218,7 @@ def run_2D(ctx,input,kernelresp):
                 t_st=t
                 t=t+16 if n==0 else t+28
         #Save hits
-        FinalHits.append((pn,[trueHits,rawHits,spHits]))
+        FinalHits.append([pn,[trueHits,rawHits,spHits]])
     
     for n,p in enumerate(FinalHits):
         if n!=1:
@@ -250,6 +250,48 @@ def run_2D(ctx,input,kernelresp):
 @cli.command()
 @click.option("-i","--input", type=str, required=False,
               help="Placeholder")
+@click.option("-k","--kernelresp",type=click.Path(),required=False,
+              help="Path to Field Response")
+@click.pass_context
+def run_2D_full(ctx,input,kernelresp):
+    '''
+    Runs Toy Simulation + Reconstruction for two MIP tracks in Full 2D (with long range inducitno on adjacent pixels)
+    '''
+    if not kernelresp:
+        print("Path to FR was not provided. Using Toy Kernel")
+        kernel=pixsi.toy_sim.kernel()
+        kernel_ind=pixsi.toy_sim.kernel()
+    else:
+        kernel=pixsi.toy_sim.getKernel(kernelresp)*100
+        kernel_ind=pixsi.toy_sim.getKernel_Ind(kernelresp)*100
+    kernel=kernel[kernel!=0]
+    kernel_ind=kernel_ind[kernel_ind!=0]
+    import matplotlib.pyplot as plt
+    import numpy as np
+    
+    #define example true signal
+    track1 = pixsi.toy_sim.sim_MIP(150,0,80,45)
+    track2 = pixsi.toy_sim.sim_MIP(190,20,80,10)
+    print("Total Track1 Charge: ",np.sum(np.array([np.sum(i) for i in track1])))
+    if len(track2)>0: print("Total Track2 Charge: ",np.sum(np.array([np.sum(i) for i in track2])))
+    if len(track2)>0 and len(track1)<len(track2):
+        arr = [np.zeros(1600) for _ in range(len(track2)-len(track1))]
+        track1=track1+arr
+    pixels = np.array([a + b for a, b in zip(track1, track2)]) if len(track2)>0 else np.array(track1)
+    np.insert(pixels,0,np.zeros(1600))
+    np.append(pixels,np.zeros(1600))
+    print("Used Pixels: ",len(pixels))
+    
+    
+    meas,blocks,hits_true_raw = pixsi.toy_sim.simActivity_toy(pixels,kernel,kernel_ind)
+    
+    
+    FinalHits = []
+
+
+@cli.command()
+@click.option("-i","--input", type=str, required=False,
+              help="Input Hits")
 @click.pass_context
 def eval(ctx,input):
     '''
@@ -293,7 +335,7 @@ def eval(ctx,input):
     import matplotlib.pyplot as plt
     
     fig, axs = plt.subplots(3, 1, figsize=(10, 8))
-    
+    print(nonzerohits_true)
     axs[0].plot(x, nonzerohits_true, label="TrueHits", color='b')
     axs[0].plot(x, nonzerohits_raw, label="RawHits", color='g')
     axs[0].plot(x, nonzerohits_sp, label="SPHits", color='r')

@@ -122,7 +122,7 @@ def simActivity_toy(pixels,kernel_middle,kernel_adj):
         rawHits=[]
         #Create True Hits
         for block in M_blocks:
-            true_times=np.nonzero(p)[0]
+            true_times=np.nonzero(pixels[nc-1])[0]
             if len(true_times)==0 : continue
             chg=true_times[0]
             tr=block[0][0]
@@ -135,7 +135,7 @@ def simActivity_toy(pixels,kernel_middle,kernel_adj):
                 avg=np.sum(c[slice(s[0],s[1])])/dt_true
                 h = Hit(avg,s[0],s[1])
                 trueHits.append(h)
-            c[chg:slices[-1][1]]=0
+            pixels[nc-1][chg:slices[-1][1]]=0
         #Create Raw Hits
         for block in M_blocks:
             for n,m in enumerate(block):
@@ -147,6 +147,7 @@ def simActivity_toy(pixels,kernel_middle,kernel_adj):
                     h=Hit(m[1]/28,m[0]-28,m[0])
                 rawHits.append(h)
         hits.append([nc,[trueHits,rawHits]])
+
     return measurements,blocks,hits
     
 

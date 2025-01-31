@@ -284,10 +284,42 @@ def run_2D_full(ctx,input,kernelresp):
     
     
     meas,blocks,hits_true_raw = pixsi.toy_sim.simActivity_toy(pixels,kernel,kernel_ind)
+
+
     
+    import time
+    t0 = time.time()
+    
+    
+    sp_result, pixel_block_param_map = pixsi.solver_2D.solver_2D_scipy(blocks,kernel,kernel_ind)
+    
+    t1 = time.time()
+
+    print("Minimization Took Arrpoximately : ",(t1-t0)/60.0," min")
     
     FinalHits = []
-
+    idx_param=0
+    for npi,p in enumerate(blocks):
+        spHits=[]
+        if len(p)==0:
+            continue
+        for nb,b in enumerate(p):
+            t_st = sp_result[idx_param]
+            dt = b[0][0]+len(kernel)
+            Q = sp_result[idx_param+1:idx_param+pixel_block_param_map[npi][nb]]
+            idx_param+=pixel_block_param_map[npi][nb]
+            for nq,q in enumerate(Q):
+                h=pixsi.hit.Hit(q/(dt),t_st,t_st+dt)
+                spHits.append(h)
+                t_st+=dt
+                dt=16 if nq==0 else 28
+        hits_true_raw[npi][1].append(spHits)
+        FinalHits.append([npi,hits_true_raw[npi][1]])
+    import pickle
+    pickled_object = pickle.dumps(FinalHits)
+    np.savez("FinalHits_2d_test.npz", data=pickled_object)
+    
+    
 
 @cli.command()
 @click.option("-i","--input", type=str, required=False,
@@ -313,7 +345,6 @@ def eval(ctx,input):
     tStart_true=[]
     tStart_raw=[]
     tStart_sp=[]
-    
     for p in loaded_hits:
         th=p[1][0]
         rh=p[1][1]
@@ -363,10 +394,8 @@ def eval(ctx,input):
 
     plt.tight_layout()
     plt.show()
-    
-    
     for n,p in enumerate(loaded_hits):
-        if n!=0:
+        if n!=10:
             continue
         print("Pixel ",p[0])
         print("True Hits: ",p[1][0])

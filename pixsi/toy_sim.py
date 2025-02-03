@@ -97,13 +97,21 @@ def sim_MIP(t_start,x_start,length,angle):
 
 def simActivity_toy(pixels,kernel_middle,kernel_adj):
     time_steps=np.linspace(0, 1600, 1600)
-    currents = np.array([np.zeros(1600) for _ in range(len(pixels))])
-    for p in range(1,len(pixels)-1):
-        current_response_middle = compute_current(pixels[p], kernel_middle, time_steps)
-        current_response_side = compute_current(pixels[p], kernel_adj, time_steps)
+    currents = np.array([np.zeros(1600) for _ in range(len(pixels)+2)])
+    for p in range(1,len(pixels)+1):
+        current_response_middle = compute_current(pixels[p-1], kernel_middle, time_steps)
+        current_response_side = compute_current(pixels[p-1], kernel_adj, time_steps)
         currents[p-1]+=current_response_side
         currents[p]+=current_response_middle
         currents[p+1]+=current_response_side
+    
+    import matplotlib.pyplot as plt
+    for n,i in enumerate(pixels):
+        plt.plot(i,label="charge %.2f"%n)
+    for n,i in enumerate(currents):
+        plt.plot(np.cumsum(i),label="current %.2f"%n)
+    plt.legend()
+    plt.show()
     trsh=5000
     from .preproc import process_measurements as PreProc
     from .hit import Hit
@@ -129,10 +137,12 @@ def simActivity_toy(pixels,kernel_middle,kernel_adj):
             kl=len(kernel_middle)
             n = len(block)-1
             slices = [(chg,tr+kl)]+[(tr+kl,tr+kl+16)]+[(tr+kl+16+28*i,tr+kl+16+28*(i+1)) for i in range(n-2)]
+            print(slices)
             for s in slices:
                 dt_true = s[1]-s[0]
                 if dt_true==0: continue
-                avg=np.sum(c[slice(s[0],s[1])])/dt_true
+                avg=np.sum(pixels[nc-1][slice(s[0],s[1])])/dt_true
+                if avg==0: continue
                 h = Hit(avg,s[0],s[1])
                 trueHits.append(h)
             pixels[nc-1][chg:slices[-1][1]]=0

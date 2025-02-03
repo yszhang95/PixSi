@@ -265,24 +265,22 @@ def run_2D_full(ctx,input,kernelresp):
         kernel=pixsi.toy_sim.getKernel(kernelresp)*100
         kernel_ind=pixsi.toy_sim.getKernel_Ind(kernelresp)*100
     kernel=kernel[kernel!=0]
-    kernel_ind=kernel_ind[kernel_ind!=0]
+    kernel_ind=kernel_ind[kernel_ind>0]
     import matplotlib.pyplot as plt
     import numpy as np
     
     #define example true signal
-    track1 = pixsi.toy_sim.sim_MIP(150,0,80,45)
-    track2 = pixsi.toy_sim.sim_MIP(190,20,80,10)
+    track1 = pixsi.toy_sim.sim_MIP(150,0,100,45)
+    track2 = pixsi.toy_sim.sim_MIP(220,0,100,10)
     print("Total Track1 Charge: ",np.sum(np.array([np.sum(i) for i in track1])))
     if len(track2)>0: print("Total Track2 Charge: ",np.sum(np.array([np.sum(i) for i in track2])))
     if len(track2)>0 and len(track1)<len(track2):
         arr = [np.zeros(1600) for _ in range(len(track2)-len(track1))]
         track1=track1+arr
     pixels = np.array([a + b for a, b in zip(track1, track2)]) if len(track2)>0 else np.array(track1)
-    np.insert(pixels,0,np.zeros(1600))
-    np.append(pixels,np.zeros(1600))
+    #np.insert(pixels,0,np.zeros(1600))
+    #np.append(pixels,np.zeros(1600))
     print("Used Pixels: ",len(pixels))
-    
-    
     meas,blocks,hits_true_raw = pixsi.toy_sim.simActivity_toy(pixels,kernel,kernel_ind)
 
 
@@ -305,7 +303,7 @@ def run_2D_full(ctx,input,kernelresp):
             continue
         for nb,b in enumerate(p):
             t_st = sp_result[idx_param]
-            dt = b[0][0]+len(kernel)
+            dt = b[0][0]+len(kernel)-t_st
             Q = sp_result[idx_param+1:idx_param+pixel_block_param_map[npi][nb]]
             idx_param+=pixel_block_param_map[npi][nb]
             for nq,q in enumerate(Q):
@@ -317,7 +315,7 @@ def run_2D_full(ctx,input,kernelresp):
         FinalHits.append([npi,hits_true_raw[npi][1]])
     import pickle
     pickled_object = pickle.dumps(FinalHits)
-    np.savez("FinalHits_2d_test.npz", data=pickled_object)
+    np.savez("FinalHits_2d_test_short.npz", data=pickled_object)
     
     
 
@@ -395,7 +393,7 @@ def eval(ctx,input):
     plt.tight_layout()
     plt.show()
     for n,p in enumerate(loaded_hits):
-        if n!=10:
+        if n>5:
             continue
         print("Pixel ",p[0])
         print("True Hits: ",p[1][0])

@@ -58,6 +58,7 @@ def solver_scipy(block,kernel):
     initial_guess[1]=1
     bounds = [(0, None) for _ in initial_guess]
     bounds[0]=(block[0][0]-28,block[0][0]+len(kernel))
+    #bounds[0]=(block[0][0]-1,block[0][0]+1)
     bounds[1]=(1,None) # at least something has to be absorbed at or after the trigger even if charge was accumulated before
     print("Considered Block: ",block)
     print("Initial Guess: ",initial_guess)

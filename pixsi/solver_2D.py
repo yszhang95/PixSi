@@ -2,6 +2,7 @@ import numpy as np
 from scipy.linalg import toeplitz
 from scipy.optimize import minimize
 from scipy.optimize import shgo
+import math
 from .util import uniform_charge_cum_current as current
 
 def objective_function(params,measurements,kernel_mid,kernel_ind, pixel_block_param_map):
@@ -57,23 +58,20 @@ def objective_function(params,measurements,kernel_mid,kernel_ind, pixel_block_pa
             for nm,m in enumerate(b): # per measurement
                 if nm==0:
                     continue
-                #toy_pixels[npi+1][m[0]+2:]=toy_pixels[npi+1][m[0]+2:]-toy_pixels[npi+1][m[0]+1] #Thoughts: as trigger works we take time of the measurement and subtrackt next value since 1 ticktime of dead pixle also "lost"
-                toy_pixels[npi+1][m[0]+1:]=toy_pixels[npi+1][m[0]+1:]-m[1]#np.maximum(toy_pixels[npi+1][m[0]+1:]-m[1],0)#another approach is to subtract actual measurement at this point as we know what we measured, but what to do with negative values?
+                toy_pixels[npi+1][m[0]+2:]=toy_pixels[npi+1][m[0]+2:]-toy_pixels[npi+1][m[0]+1] #Thoughts: as trigger works we take time of the measurement and subtrackt next value since 1 ticktime of dead pixle also "lost"
+                #toy_pixels[npi+1][m[0]+1:]=toy_pixels[npi+1][m[0]+1:]-m[1]#np.maximum(toy_pixels[npi+1][m[0]+1:]-m[1],0)#another approach is to subtract actual measurement at this point as we know what we measured, but what to do with negative values?
             for nm,m in enumerate(b): # per measurement
-                if nm==0:
-                    chi2+=100*(toy_pixels[npi+1][m[0]]-m[1])**2
-                else:
-                    chi2+=(toy_pixels[npi+1][m[0]]-m[1])**2
+                chi2+=((toy_pixels[npi+1][m[0]]-m[1]))**2
     
-    chi2+=(toy_pixels[0][-1])**2
-    chi2+=(toy_pixels[-1][-1])**2
+    #chi2+=(toy_pixels[0][-1])**2
+    #chi2+=(toy_pixels[-1][-1])**2
     #plt.plot(toy_pixels[-2])
     #plt.plot(toy_pixels[1])
     #plt.plot(toy_pixels[2])
     #plt.show()
     #print("Function Result: ",chi2+abs(np.sum(params)))
     fvals.append(chi2)#+abs(np.sum(params)))
-    return chi2#+abs(np.sum(params))
+    return chi2
 
 fvals=[]
 
@@ -96,7 +94,8 @@ def solver_2D_scipy(blocks,kernel_mid,kernel_ind):
             initial_guess_perblock = [b[0][0]]+[0 for _ in range(len(b)-1)]
             initial_guess_perblock[1]=1
             bounds_perblock = [(0, None) for _ in initial_guess_perblock]
-            bounds_perblock[0]=(b[0][0]-16,b[0][0]+len(kernel_mid))
+            #bounds_perblock[0]=(b[0][0]-16,b[0][0]+len(kernel_mid))
+            bounds_perblock[0]=(b[0][0],b[0][0])
             #bounds[0]=(block[0][0]-1,block[0][0]+1)
             bounds_perblock[1]=(1,None) # at least something has to be absorbed at or after the trigger even if charge was accumulated before
             block_param_map[nb]=len(initial_guess_perblock)

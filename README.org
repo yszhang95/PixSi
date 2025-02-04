@@ -39,8 +39,10 @@ Options:
   --help               Show this message and exit.
 
 Commands:
-  eval    Evaluate Hits
-  run-1d  Runs Toy Simulation + Reconstruction for a single pixel
-  run-2d  Runs Toy Simulation + Reconstruction for two MIP tracks in pseudo...
+  eval         Evaluate Hits
+  run-1d       Toy Sim + SP for a single pixel
+  run-2d       Toy Sim + SP for two MIP tracks [NO long-range ind.]
+  run-2d-full  Toy Sim + SP for two MIP tracks with +-1 pixle for long
+               range...
 #+end_example
 

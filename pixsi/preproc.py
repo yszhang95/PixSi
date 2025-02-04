@@ -11,7 +11,7 @@ def process_measurements(measurements,threshold=200):
             current_block.append((t, value))
         else:
             # Check if the measurement belongs to the current block
-            if t - current_block[-1][0] <= 29:
+            if t - current_block[-1][0] <= 28+16:
                 current_block.append((t, value))
             else:
                 # Finalize the current block

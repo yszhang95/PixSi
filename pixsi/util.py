@@ -26,6 +26,26 @@ def uniform_charge_cum_current(q, t_start, time_int,kernel):
     tot_c[start:end]=c_cum[len(current)-(end-start):]
     if end<len(tot_c): tot_c[end:]=c_cum[-1]
     return tot_c
+    
+    
+def uniform_charge_cum_current_part(q,time_int,kernel):
+    kernel_resp = kernel[kernel != 0]
+    kernel_len = len(kernel_resp)
+    if time_int <= 0:
+        return np.zeros(kernel_len)
+    time_int=int(np.floor(time_int))
+    # Ensure time_int is treated correctly
+    dt = time_int
+    dq = q / dt
+    
+    current = np.zeros(kernel_len+time_int)
+
+    c = kernel_resp * dq
+    
+    for i in range(dt):
+        current[i:i+kernel_len] += c
+        
+    return np.cumsum(current)
 
 
 def modify_signal(signal, window_size=28):
@@ -60,8 +80,57 @@ def make_dense_WF(arr):
     return dense_arr
         
 
-def simActivity(chages,kernel_middle,kernel_adj):
+import numpy as np
+from sortedcontainers import SortedList
+from collections import defaultdict
+
+def build_signal_measurement_map(measurements, signals, kernel_length_mid, kernel_length_ind):
+    """
+    Build a mapping from measurement indices to indices of signals contributing to it.
     
-    return None
+    Parameters:
+    - measurements: List of tuples (pixelID, measurement_value, time)
+    - signals: List of tuples (spID, pixelID, signal, t_start, delta_t)
+    - kernel_length_mid: Influence duration for the same pixel
+    - kernel_length_ind: Influence duration for neighboring pixels
+    
+    Returns:
+    - measurement_signal_map: Dictionary {measurement_index: [signal_indices]}
+    """
+    
+    # Sort signals by start time to allow efficient searching
+    signals = sorted(signals, key=lambda s: s[3])  # Sort by t_start
+    signal_start_times = np.array([s[3] for s in signals])  # t_start values for fast lookup
+    signal_map = defaultdict(list)  # Measurement index → List of signal indices
+
+    # Use SortedList for fast insertion and range search
+    active_signals = SortedList()
+    
+    # Process each measurement and find contributing signals
+    for meas_idx, (m_pixel, _, m_time) in enumerate(measurements):
+        contributing_signals = []
+
+        # Find signals that could contribute (Binary search for efficiency)
+        t_min = m_time - max(kernel_length_mid, kernel_length_ind)  # Earliest time of influence
+        t_max = m_time  # Only consider signals that could influence up to measurement time
+
+        start_idx = np.searchsorted(signal_start_times, t_min, side='left')  # Fast lookup
+        end_idx = np.searchsorted(signal_start_times, t_max, side='right')
+
+        # Check only relevant signals in range
+        for sig_idx in range(start_idx, end_idx):
+            spID, s_pixel, signal, t_start, delta_t = signals[sig_idx]
+
+            # Check if signal affects this measurement
+            if (s_pixel == m_pixel and t_start - kernel_length_mid <= m_time <= t_start + delta_t) or \
+               (abs(s_pixel - m_pixel) == 1 and t_start - kernel_length_ind <= m_time <= t_start + delta_t):
+                contributing_signals.append(sig_idx)
+
+        # Store results in mapping
+        if contributing_signals:
+            signal_map[meas_idx] = contributing_signals
+
+    return signal_map
+
     
     

@@ -27,7 +27,7 @@ def compute_current(signal, kernel, time_steps):
             current[max(0,t - kernel_len + 1) : t + 1] += charge * kernel[len(kernel)-(t+1-max(0,t - kernel_len + 1)):]
     return current
     
-def trigger(c,trsh=200):
+def trigger_legacy(c,trsh=200):
          # with 90 large tail
     read=int(1.5/0.1)+1
     dead=1
@@ -63,6 +63,56 @@ def trigger(c,trsh=200):
         if hold<=0:
             busy=False
             hold=int(1.1/0.1)+dead
+    return meas,actualq
+    
+def trigger(c,trsh=200):
+         # with 90 large tail
+    read=int(1.5/0.1)+1
+    dead=1
+    hold=int(1.1/0.1)+dead
+    meas=[]
+    qsum=0
+    busy=False
+    dead=False
+    n=0
+    actualq=[]
+    while n<len(c):
+        if not dead:
+            qsum+=c[n]
+        else:
+            dead=False
+            busy=True
+        if qsum>=trsh and not busy:
+            time=n
+            reading=0
+            while reading<read:
+                n+=1
+                reading+=1
+                if n<len(c): qsum+=c[n]
+                actualq.append(qsum)
+            meas.append((time,qsum))
+            qsum=0
+            dead=True
+        else:
+            actualq.append(qsum)
+            n+=1
+        if busy:
+            hold-=1
+            if qsum >= trsh and hold > 0:  # Check if threshold is crossed within hold period
+                reading = 0
+                while reading < (read + hold):  # Extend accumulation to 27 ticks
+                    n += 1
+                    reading += 1
+                    if n < len(c):qsum += c[n]
+                    actualq.append(qsum)
+                meas.append((n-16, qsum))  # Store measurement at 11 ticks after dead time
+                qsum = 0
+                dead = True
+                busy = True
+                hold=int(1.1/0.1)+dead
+            elif hold<=0:
+                busy=False
+                hold=int(1.1/0.1)+dead
     return meas,actualq
 
 
@@ -110,8 +160,7 @@ def simActivity_toy(pixels,kernel_middle,kernel_adj):
         plt.plot(i,label="charge %.2f"%n)
     for n,i in enumerate(currents):
         plt.plot(np.cumsum(i),label="current %.2f"%n)
-    plt.legend()
-    plt.show()
+    
     trsh=5000
     from .preproc import process_measurements as PreProc
     from .hit import Hit
@@ -120,11 +169,13 @@ def simActivity_toy(pixels,kernel_middle,kernel_adj):
     hits=[]
     for nc,c in enumerate(currents):
         if np.sum(c)<trsh:
-            measurements.append([])
+            #measurements.append([])
             continue
         M,q=trigger(c,trsh)
+        plt.plot(q,label="actual current %.2f"%nc)
         M_blocks=PreProc(M,trsh)
-        measurements.append(M)
+        for i in M:
+            measurements.append((nc,i[0],i[1]))
         blocks.append(M_blocks)
         trueHits=[]
         rawHits=[]
@@ -136,8 +187,9 @@ def simActivity_toy(pixels,kernel_middle,kernel_adj):
             tr=block[0][0]
             kl=len(kernel_middle)
             n = len(block)-1
-            slices = [(chg,tr+kl)]+[(tr+kl,tr+kl+16)]+[(tr+kl+16+28*i,tr+kl+16+28*(i+1)) for i in range(n-2)]
-            print(slices)
+            #slices = [(chg,tr+kl)]+[(tr+kl,tr+kl+16)]+[(tr+kl+16+28*i,tr+kl+16+28*(i+1)) for i in range(n-2)]
+            slices = [(chg,tr+16)]+[(tr+16+28*i,tr+16+28*(i+1)) for i in range(n-1)] #for simple short hit defenition
+            #print(slices)
             for s in slices:
                 dt_true = s[1]-s[0]
                 if dt_true==0: continue
@@ -148,6 +200,7 @@ def simActivity_toy(pixels,kernel_middle,kernel_adj):
             pixels[nc-1][chg:slices[-1][1]]=0
         #Create Raw Hits
         for block in M_blocks:
+            #print("debug: ",block)
             for n,m in enumerate(block):
                 if n==0 or n==len(block)-1:
                     continue
@@ -157,7 +210,9 @@ def simActivity_toy(pixels,kernel_middle,kernel_adj):
                     h=Hit(m[1]/28,m[0]-28,m[0])
                 rawHits.append(h)
         hits.append([nc,[trueHits,rawHits]])
-
+    plt.legend()
+    plt.show()
+    
     return measurements,blocks,hits
     
 

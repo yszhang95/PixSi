@@ -29,7 +29,7 @@ def cli(ctx, store, outstore):
 @click.pass_context
 def run_1D(ctx,input,kernelresp):
     '''
-    Runs Toy Simulation + Reconstruction for a single pixel
+    Toy Sim + SP for a single pixel
     '''
     
     if not kernelresp:
@@ -132,7 +132,7 @@ def run_1D(ctx,input,kernelresp):
 @click.pass_context
 def run_2D(ctx,input,kernelresp):
     '''
-    Runs Toy Simulation + Reconstruction for two MIP tracks in pseudo 2D
+    Toy Sim + SP for two MIP tracks [NO long-range ind.]
     '''
     if not kernelresp:
         print("Path to FR was not provided. Using Toy Kernel")
@@ -255,7 +255,7 @@ def run_2D(ctx,input,kernelresp):
 @click.pass_context
 def run_2D_full(ctx,input,kernelresp):
     '''
-    Runs Toy Simulation + Reconstruction for two MIP tracks in Full 2D (with long range inducitno on adjacent pixels)
+        Toy Sim + SP for two MIP tracks with +-1 pixle for long range ind.
     '''
     if not kernelresp:
         print("Path to FR was not provided. Using Toy Kernel")
@@ -268,7 +268,10 @@ def run_2D_full(ctx,input,kernelresp):
     kernel_ind=kernel_ind[kernel_ind>0]
     import matplotlib.pyplot as plt
     import numpy as np
-    
+    plt.plot(np.cumsum(kernel),label="kernel middle")
+    plt.plot(np.cumsum(kernel_ind),label="kernel ind")
+    plt.legend()
+    plt.show()
     #define example true signal
     track1 = pixsi.toy_sim.sim_MIP(150,0,100,45)
     track2 = pixsi.toy_sim.sim_MIP(220,0,100,10)
@@ -280,42 +283,51 @@ def run_2D_full(ctx,input,kernelresp):
     pixels = np.array([a + b for a, b in zip(track1, track2)]) if len(track2)>0 else np.array(track1)
     #np.insert(pixels,0,np.zeros(1600))
     #np.append(pixels,np.zeros(1600))
+    #pixels=[pixels[0]]
     print("Used Pixels: ",len(pixels))
     meas,blocks,hits_true_raw = pixsi.toy_sim.simActivity_toy(pixels,kernel,kernel_ind)
-
-
     
+    #print("Measurements : ",meas)
+    
+    ext_meas = pixsi.preproc.extend_measurements(meas,5000)
+    
+    #print("Extended Measurements: ",ext_meas)
+    
+    #signals = pixsi.preproc.define_signals(ext_meas,len(kernel),5000)
+    signals = pixsi.preproc.define_signals_simple(ext_meas,len(kernel),5000)
+    #print("Defined Signals: ",signals)
+    
+    response=[kernel,kernel_ind]
+    
+    from .util import uniform_charge_cum_current_part as current_part
+
+        
     import time
     t0 = time.time()
     
     
-    sp_result, pixel_block_param_map = pixsi.solver_2D.solver_2D_scipy(blocks,kernel,kernel_ind)
+    sp_result, pixel_block_param_map = pixsi.solver_2D_fast_simple.solver_2D_scipy_simple(ext_meas,signals,response)
+    
+    #sp_result, pixel_block_param_map = pixsi.solver_2D.solver_2D_scipy(blocks,kernel,kernel_ind)
     
     t1 = time.time()
 
     print("Minimization Took Arrpoximately : ",(t1-t0)/60.0," min")
-    
+    print(hits_true_raw)
+    print("SP Result: ", sp_result)
     FinalHits = []
     idx_param=0
-    for npi,p in enumerate(blocks):
+    for npi,p in enumerate(hits_true_raw):
         spHits=[]
-        if len(p)==0:
-            continue
-        for nb,b in enumerate(p):
-            t_st = sp_result[idx_param]
-            dt = b[0][0]+len(kernel)-t_st
-            Q = sp_result[idx_param+1:idx_param+pixel_block_param_map[npi][nb]]
-            idx_param+=pixel_block_param_map[npi][nb]
-            for nq,q in enumerate(Q):
-                h=pixsi.hit.Hit(q/(dt),t_st,t_st+dt)
-                spHits.append(h)
-                t_st+=dt
-                dt=16 if nq==0 else 28
+        for s in sp_result:
+            if s[1]!=npi+1:
+                continue
+            spHits.append(pixsi.hit.Hit(s[2]/s[4],s[3],s[3]+s[4]))
         hits_true_raw[npi][1].append(spHits)
         FinalHits.append([npi,hits_true_raw[npi][1]])
     import pickle
     pickled_object = pickle.dumps(FinalHits)
-    np.savez("FinalHits_2d_test_short.npz", data=pickled_object)
+    np.savez("FinalHits_2d_test_short_fast.npz", data=pickled_object)
     
     
 
@@ -343,23 +355,34 @@ def eval(ctx,input):
     tStart_true=[]
     tStart_raw=[]
     tStart_sp=[]
-    for p in loaded_hits:
+    adj=0
+    for npp,p in enumerate(loaded_hits):
         th=p[1][0]
         rh=p[1][1]
         sph=p[1][2]
-        nonzerohits_true.append(np.sum([t.charge>1 for t in th]))
+        if len(sph)==0:
+            adj+=1
+            continue
+        print(th)
+        if len(th)>0:
+            nonzerohits_true.append(np.sum([t.charge>1 for t in th]))
+            totCharge_true.append(np.sum([t.charge*(t.end_time-t.start_time) for t in th]))
+            tStart_true.append(th[0].start_time)
+        else:
+            nonzerohits_true.append(0)
+            totCharge_true.append(0)
+            tStart_true.append(0)
+        
         nonzerohits_raw.append(np.sum([t.charge>1 for t in rh]))
         nonzerohits_sp.append(np.sum([t.charge>1 for t in sph]))
         
-        totCharge_true.append(np.sum([t.charge*(t.end_time-t.start_time) for t in th]))
         totCharge_raw.append(np.sum([t.charge*(t.end_time-t.start_time) for t in rh]))
         totCharge_sp.append(np.sum([t.charge*(t.end_time-t.start_time) for t in sph]))
         
-        tStart_true.append(th[0].start_time)
         tStart_raw.append(rh[0].start_time)
         tStart_sp.append(sph[0].start_time)
         
-    x=np.linspace(0,len(loaded_hits),len(loaded_hits))
+    x=np.linspace(0,len(loaded_hits)-adj,len(loaded_hits)-adj)
     
     import matplotlib.pyplot as plt
     
@@ -393,7 +416,7 @@ def eval(ctx,input):
     plt.tight_layout()
     plt.show()
     for n,p in enumerate(loaded_hits):
-        if n>5:
+        if n>7:
             continue
         print("Pixel ",p[0])
         print("True Hits: ",p[1][0])

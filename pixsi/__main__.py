@@ -268,13 +268,13 @@ def run_2D_full(ctx,input,kernelresp):
     kernel_ind=kernel_ind[kernel_ind>0]
     import matplotlib.pyplot as plt
     import numpy as np
-    plt.plot(np.cumsum(kernel),label="kernel middle")
-    plt.plot(np.cumsum(kernel_ind),label="kernel ind")
-    plt.legend()
-    plt.show()
+    #plt.plot(np.cumsum(kernel),label="kernel middle")
+    #plt.plot(np.cumsum(kernel_ind),label="kernel ind")
+    #plt.legend()
+    #plt.show()
     #define example true signal
-    track1 = pixsi.toy_sim.sim_MIP(150,0,100,45)
-    track2 = pixsi.toy_sim.sim_MIP(220,0,100,10)
+    track1 = pixsi.toy_sim.sim_MIP(20,0,100,45)
+    track2 = pixsi.toy_sim.sim_MIP(30,0,100,10)
     print("Total Track1 Charge: ",np.sum(np.array([np.sum(i) for i in track1])))
     if len(track2)>0: print("Total Track2 Charge: ",np.sum(np.array([np.sum(i) for i in track2])))
     if len(track2)>0 and len(track1)<len(track2):
@@ -296,8 +296,9 @@ def run_2D_full(ctx,input,kernelresp):
     #signals = pixsi.preproc.define_signals(ext_meas,len(kernel),5000)
     signals = pixsi.preproc.define_signals_simple(ext_meas,len(kernel),5000)
     #print("Defined Signals: ",signals)
-    
-    response=[kernel,kernel_ind]
+    print("# of measurements: ",len(meas))
+    print("# of signals: ",len(signals))
+    response=[[kernel, kernel_ind], [kernel_ind, kernel_ind]]
     
     from .util import uniform_charge_cum_current_part as current_part
 
@@ -313,8 +314,8 @@ def run_2D_full(ctx,input,kernelresp):
     t1 = time.time()
 
     print("Minimization Took Arrpoximately : ",(t1-t0)/60.0," min")
-    print(hits_true_raw)
-    print("SP Result: ", sp_result)
+    #print(hits_true_raw)
+    #print("SP Result: ", sp_result)
     FinalHits = []
     idx_param=0
     for npi,p in enumerate(hits_true_raw):
@@ -327,7 +328,7 @@ def run_2D_full(ctx,input,kernelresp):
         FinalHits.append([npi,hits_true_raw[npi][1]])
     import pickle
     pickled_object = pickle.dumps(FinalHits)
-    np.savez("FinalHits_2d_test_short_fast.npz", data=pickled_object)
+    np.savez("FinalHits_2d_test_long_fast.npz", data=pickled_object)
     
     
 
@@ -390,7 +391,7 @@ def eval(ctx,input):
     print(nonzerohits_true)
     axs[0].plot(x, nonzerohits_true, label="TrueHits", color='b')
     axs[0].plot(x, nonzerohits_raw, label="RawHits", color='g')
-    axs[0].plot(x, nonzerohits_sp, label="SPHits", color='r')
+    axs[0].plot(x+adj, nonzerohits_sp, label="SPHits", color='r')
     axs[0].set_title("Number of Hits with Charge>1 per Pixel")
     axs[0].set_xlabel("Pixel")
     axs[0].legend()

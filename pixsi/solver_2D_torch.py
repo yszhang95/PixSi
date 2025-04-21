@@ -71,7 +71,7 @@ def solver_2D_torch_general(measurements, signals, response, device='cuda'):
                     sample_param_map[meas_key] = []
                 sample_param_map[meas_key].append((s_id, Q_contrib.item()))
                 if samples[meas_key] not in [0, 5000]:
-                    remaining_charge[idx:] -= Q_contrib
+                    remaining_charge[idx:] = remaining_charge[idx:].copy() - Q_contrib
                 if torch.all(remaining_charge <= 1e-6):
                     signal_stop[key] = meas_time
                     break
@@ -86,7 +86,6 @@ def solver_2D_torch_general(measurements, signals, response, device='cuda'):
                 end_time = s_t_start + s_dt
                 process_contributions(s_id, dy, dz, s_pixel, start_time, end_time, conv_q)
 
-    # --- Sparse matrix construction and optimization (same as original) ---
     N_measurements = len(valid_measurements)
     N_signals = len(signals)
     total_contribs = sum(len(v) for k, v in sample_param_map.items() if k in meas_key_to_idx)

@@ -273,8 +273,8 @@ def run_2D_full(ctx,input,kernelresp):
     #plt.legend()
     #plt.show()
     #define example true signal
-    track1 = pixsi.toy_sim.sim_MIP(20,0,100,45)
-    track2 = pixsi.toy_sim.sim_MIP(30,0,100,10)
+    track1 = pixsi.toy_sim.sim_MIP(20,0,300,45)
+    track2 = pixsi.toy_sim.sim_MIP(30,0,300,10)
     print("Total Track1 Charge: ",np.sum(np.array([np.sum(i) for i in track1])))
     if len(track2)>0: print("Total Track2 Charge: ",np.sum(np.array([np.sum(i) for i in track2])))
     if len(track2)>0 and len(track1)<len(track2):
@@ -330,7 +330,83 @@ def run_2D_full(ctx,input,kernelresp):
     pickled_object = pickle.dumps(FinalHits)
     np.savez("FinalHits_2d_test_long_fast.npz", data=pickled_object)
     
+
+
+@cli.command()
+@click.option("-i","--input", type=str, required=False,
+              help="Placeholder")
+@click.option("-k","--kernelresp",type=click.Path(),required=False,
+              help="Path to Field Response")
+@click.pass_context
+def run_SP_tred(ctx,input,kernelresp):
+    '''
+        Run Signal Processing on TRED output
+    '''
+    kernel=pixsi.toy_sim.getKernel(kernelresp,0.05,0.05)*100
+    kernel_ind=pixsi.toy_sim.getKernel_Ind(kernelresp,0.05,0.05)*100
     
+    kernel=kernel[kernel!=0]
+    kernel_ind=kernel_ind[kernel_ind>0]
+    
+    import matplotlib.pyplot as plt
+    plt.plot(kernel)
+    plt.plot(kernel_ind)
+    plt.show()
+
+    meas , true_charges = pixsi.util.extract_TRED_by_tpc(input)
+    import sys
+    import numpy as np
+    np.set_printoptions(threshold=sys.maxsize)
+
+    tpc=1
+    
+    
+    
+    print("Measurements : ",meas[tpc][:5])
+    
+    ext_meas = pixsi.preproc.extend_measurements(meas[1],5000,0.05)
+    
+    print("Extended Measurements: ",ext_meas[:5])
+    
+    signals = pixsi.preproc.define_signals_simple(ext_meas,len(kernel),5000,0.05)
+    print("Defined Signals: ",signals[:5])
+    print("# of TPCs: ",len(meas))
+    print("# of measurements: ",len(meas[tpc]))
+    #print("# of signals: ",len(signals))
+    response=[[kernel, kernel_ind,kernel_ind / 10, kernel_ind / 100], [kernel_ind/10, kernel_ind/20,kernel_ind/30, kernel_ind/40],[kernel_ind/100, kernel_ind/120,kernel_ind/130, kernel_ind/140]]
+    
+
+        
+    import time
+    t0 = time.time()
+    
+    
+    sp_result, pixel_block_param_map = pixsi.solver_2D_fast_simple.solver_2D_scipy_simple(ext_meas,signals,response)
+
+    t1 = time.time()
+
+    print("Minimization Took Arrpoximately : ",(t1-t0)/60.0," min")
+    #print(hits_true_raw)
+    #print("SP Result: ", sp_result)
+    #FinalHits = []
+    #idx_param=0
+    #for npi,p in enumerate(hits_true_raw):
+    #    spHits=[]
+    #    for s in sp_result:
+    #        if s[1]!=npi+1:
+    #            continue
+    #        spHits.append(pixsi.hit.Hit(s[2]/s[4],s[3],s[3]+s[4]))
+    #    hits_true_raw[npi][1].append(spHits)
+    #    FinalHits.append([npi,hits_true_raw[npi][1]])
+    #import pickle
+    #pickled_object = pickle.dumps(FinalHits)
+    #np.savez("FinalHits_2d_test_long_fast.npz", data=pickled_object)
+    
+
+
+
+
+
 
 @cli.command()
 @click.option("-i","--input", type=str, required=False,
@@ -352,7 +428,6 @@ def eval(ctx,input):
     totCharge_true=[]
     totCharge_raw=[]
     totCharge_sp=[]
-    
     tStart_true=[]
     tStart_raw=[]
     tStart_sp=[]
@@ -384,11 +459,9 @@ def eval(ctx,input):
         tStart_sp.append(sph[0].start_time)
         
     x=np.linspace(0,len(loaded_hits)-adj,len(loaded_hits)-adj)
-    
     import matplotlib.pyplot as plt
     
     fig, axs = plt.subplots(3, 1, figsize=(10, 8))
-    print(nonzerohits_true)
     axs[0].plot(x, nonzerohits_true, label="TrueHits", color='b')
     axs[0].plot(x, nonzerohits_raw, label="RawHits", color='g')
     axs[0].plot(x+adj, nonzerohits_sp, label="SPHits", color='r')
@@ -397,9 +470,9 @@ def eval(ctx,input):
     axs[0].legend()
     axs[0].grid()
 
-    axs[1].plot(x, totCharge_true, label="TrueHits", color='b')
-    axs[1].plot(x, totCharge_raw, label="RawHits", color='g')
-    axs[1].plot(x, totCharge_sp, label="SPHits", color='r')
+    axs[1].plot(x[2:], totCharge_true[2:], label="TrueHits", color='b')
+    axs[1].plot(x[2:], totCharge_raw[2:], label="RawHits", color='g')
+    axs[1].plot(x[2:], totCharge_sp[1:-1], label="SPHits", color='r')
     axs[1].set_title("Total Charge per Pixel")
     axs[1].set_xlabel("Pixel")
     axs[1].legend()
@@ -415,6 +488,17 @@ def eval(ctx,input):
 
 
     plt.tight_layout()
+    plt.show()
+    tru_np = np.array(totCharge_true[2:])
+    raw_np = np.array(totCharge_raw[2:])
+    sp_np = np.array(totCharge_sp[1:-1])
+    plt.hist((tru_np[tru_np>0]-raw_np[raw_np>0])/tru_np[tru_np>0],label="Raw Meas")
+    plt.hist((tru_np[tru_np>0]-sp_np[sp_np>0])/tru_np[tru_np>0],label="SP Meas")
+    plt.legend()
+        
+    plt.xlabel('$(Charge_{True}-Charge_{meas})/Charge_{True}$')
+    plt.ylabel('# of Pixels')
+    plt.title('Observed Charge Per Pixel')
     plt.show()
     for n,p in enumerate(loaded_hits):
         if n>7:
@@ -435,7 +519,7 @@ def eval(ctx,input):
         plt.plot(time,dense_raw,label="Raw Hits")
         plt.plot(time,dense_sp,label="SP Hits")
         plt.legend()
-        plt.show()
+    #    plt.show()
     
   
 def main():

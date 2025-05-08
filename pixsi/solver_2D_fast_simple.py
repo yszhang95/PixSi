@@ -3,7 +3,6 @@ from scipy.linalg import toeplitz
 from scipy.optimize import minimize
 from scipy.optimize import shgo
 import math
-from .util import uniform_charge_cum_current as current
 from .util import uniform_charge_cum_current_part as current_part
 
     
@@ -31,7 +30,9 @@ def solver_2D_scipy_simple(measurements,signals,response):
         'xtol': 1e-9,       # Set Tolerance on parameter steps
         'disp': False,      # Enable verbose output to monitor progress
     }
-
+    
+    max_readout_time_ticks = 12000
+    
     initial_guess=[]
     bounds=[]
 
@@ -64,19 +65,22 @@ def solver_2D_scipy_simple(measurements,signals,response):
     signal_remaining = {}  # Remaining fraction for (s_id,dy,dz)
     
     def process_contributions(s_id, dy, dz, s_pixel, start_time, end_time, conv_q):
-        neighbor = s_pixel + dy + 10 * dz # 10 is arbitrari number of pixels per row -> we will need to make sure pixel ID is actually start from 0 and goes by row (n rows, m cols) - > pixle ID = i + m*j
+        neighbor = ( s_pixel[0] + dy , s_pixel[1]+ dz )
+        #print("considered neighbor: ",neighbor)
         if neighbor not in measurement_times:
             return
-
+        #print("found it in meas")
         remaining_charge = conv_q.copy()
         signal_remaining[(s_id, dy, dz)] = remaining_charge
         signal_stop[(s_id, dy, dz)] = None
 
         times = measurement_times[neighbor]
         start_idx = bisect_left(times, start_time)
+        #print("times from meas: ",times)
+        #print("found start_idx: ",start_idx)
         for i in range(start_idx, len(times)):
             meas_time = times[i]
-            if meas_time > 1600:
+            if meas_time > max_readout_time_ticks:
                 break
             stop_time = signal_stop[(s_id, dy, dz)]
             if stop_time is not None and meas_time > stop_time:
@@ -100,19 +104,20 @@ def solver_2D_scipy_simple(measurements,signals,response):
                     signal_stop[(s_id, dy, dz)] = meas_time
                     break
     for s_id, s_pixel, s_value, s_t_start, s_dt, _ in sorted_signals:
+        #if s_pixel!=(40, 107):
+        #    continue
+        #print("Pixel and range : ",s_pixel,(-R,R+1))
         for dy in range(-R, R + 1):
             for dz in range(-R, R + 1):
-                if dz!=0 : continue # for now since we have a 2D thing
-                print(R,dy,dz)
+                #if dy!=0 and dz!=0: continue
                 kernel = response[abs(dy)][abs(dz)]
                 conv_q = current_part(s_value, s_dt, kernel)
                 start_time = max(0, s_t_start - len(kernel))
                 end_time = s_t_start + s_dt
                 process_contributions(s_id, dy, dz, s_pixel, start_time, end_time, conv_q)
 
-    #print("Measurements: ",measurements)
-    #print("samples: ",samples)
-    #print("signals: ",signals )
+    #print("Measurements: ",measurements[:5])
+    #print("signals: ",signals[:5])
     #print("map : ",sample_param_map)
     #for s in sample_param_map:
     #    print(s,":",[i for i in sample_param_map[s] if i[0]==0])

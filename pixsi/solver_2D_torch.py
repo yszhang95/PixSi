@@ -14,7 +14,7 @@ def solver_2D_torch_general(measurements, signals, response, device='cuda'):
     samples = {}
     meas_key_to_idx = {}
     valid_measurements = []
-
+    max_readout_time_ticks = 12000
     for m in measurements:
         pixel, time, value = m[0], m[1], m[2]
         if value == 5000 or value == 0:
@@ -40,7 +40,7 @@ def solver_2D_torch_general(measurements, signals, response, device='cuda'):
 
     def process_contributions(s_id, dy, dz, s_pixel, start_time, end_time, conv_q):
         
-        neighbor = s_pixel + dy + 10 * dz
+        neighbor = ( s_pixel[0] + dy , s_pixel[1]+ dz )
 
         if neighbor not in measurement_times:
             return
@@ -56,7 +56,7 @@ def solver_2D_torch_general(measurements, signals, response, device='cuda'):
 
         for i in range(start_idx, times.shape[0]):
             meas_time = times[i].item()
-            if meas_time > 1600:
+            if meas_time > max_readout_time_ticks:
                 break
             if signal_stop[key] is not None and meas_time > signal_stop[key]:
                 break

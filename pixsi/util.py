@@ -133,4 +133,35 @@ def build_signal_measurement_map(measurements, signals, kernel_length_mid, kerne
     return signal_map
 
     
-    
+import h5py
+from collections import defaultdict
+
+def extract_TRED_by_tpc(file_name):
+    def extract_group_data(group):
+        # Load datasets
+        grid = group['grid_index'][:]
+        pos = group['position'][:]
+        charge = group['charge'][:]
+        tpc_id = group['tpc_id'][:]
+
+        # Prepare: tpc_id -> tuple of arrays
+        data_by_tpc = defaultdict(list)
+        for tid in np.unique(tpc_id):
+            mask = (tpc_id == tid)
+            grid_x = grid[mask][:, 0]
+            grid_y = grid[mask][:, 1]
+            grid_t = grid[mask][:, 2]
+            chg = charge[mask]
+            res=[]
+            for i in range(len(chg)):
+                res.append(((grid_x[i],grid_y[i]),grid_t[i],chg[i]))
+            data_by_tpc[tid] = res
+        
+        return data_by_tpc
+
+    with h5py.File(file_name, 'r') as f:
+        hits_data = extract_group_data(f['hits'])
+        effq_data = extract_group_data(f['effq'])
+
+    return hits_data, effq_data
+

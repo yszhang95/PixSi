@@ -1,14 +1,16 @@
 import numpy as np
 from scipy.interpolate import interp1d
 
-def getKernel(path):
+def getKernel(path,fr_time_tick=0.05,det_time_tick=0.1):
     #currently supports specific format. Needs generalization
     current = np.load(path)['pixel'][191-3]
-    
-    time_05 = np.arange(0, len(current) * 0.05, 0.05)[:-1]
-    time_1 = np.arange(0, len(current) * 0.05, 0.1)
-    interpolator = interp1d(time_05, current, kind='linear')
-    current_sampled = interpolator(time_1)#[:1600]
+    if fr_time_tick==det_time_tick:
+        current_sampled= current
+    else:
+        time_05 = np.arange(0, len(current) * fr_time_tick, fr_time_tick)[:-1]
+        time_1 = np.arange(0, len(current) * fr_time_tick, det_time_tick)
+        interpolator = interp1d(time_05, current, kind='linear')
+        current_sampled = interpolator(time_1)#[:1600]
     #modification to fit current simulation constraints
     nonzeroIdxes = np.nonzero(current_sampled)[0]
     res=np.zeros(1600)
@@ -16,14 +18,17 @@ def getKernel(path):
     return res
     #nonzeroIdxes = np.nonzero(current_sampled)[0]
 
-def getKernel_Ind(path):
+def getKernel_Ind(path,fr_time_tick=0.05,det_time_tick=0.1):
     #currently supports specific format. Needs generalization
     current = np.load(path)['pixel'][191-9]
     
-    time_05 = np.arange(0, len(current) * 0.05, 0.05)[:-1]
-    time_1 = np.arange(0, len(current) * 0.05, 0.1)
-    interpolator = interp1d(time_05, current, kind='linear')
-    current_sampled = interpolator(time_1)#[:1600]
+    if fr_time_tick==det_time_tick:
+        current_sampled= current
+    else:
+        time_05 = np.arange(0, len(current) * fr_time_tick, fr_time_tick)[:-1]
+        time_1 = np.arange(0, len(current) * fr_time_tick, det_time_tick)
+        interpolator = interp1d(time_05, current, kind='linear')
+        current_sampled = interpolator(time_1)#[:1600]
     #modification to fit current simulation constraints
     nonzeroIdxes = np.nonzero(current_sampled)[0]
     res=np.zeros(1600)

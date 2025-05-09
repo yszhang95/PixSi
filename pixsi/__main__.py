@@ -289,7 +289,7 @@ def run_2D_full(ctx,input,kernelresp):
     
     #print("Measurements : ",meas)
     
-    ext_meas = pixsi.preproc.extend_measurements(meas,5000)
+    ext_meas = pixsi.preproc.extend_measurements(meas,5000) # only shifts measurements by 1.6 but has an ability to add threshold measurement upfront and possibly zero measurement at the end of the sequence
     
     #print("Extended Measurements: ",ext_meas)
     
@@ -348,10 +348,10 @@ def run_SP_tred(ctx,input,kernelresp):
     kernel=kernel[kernel!=0]
     kernel_ind=kernel_ind[kernel_ind>0]
     
-    import matplotlib.pyplot as plt
-    plt.plot(kernel)
-    plt.plot(kernel_ind)
-    plt.show()
+    #import matplotlib.pyplot as plt
+    #plt.plot(kernel)
+    #plt.plot(kernel_ind)
+    #plt.show()
 
     meas , true_charges = pixsi.util.extract_TRED_by_tpc(input)
     import sys
@@ -372,6 +372,7 @@ def run_SP_tred(ctx,input,kernelresp):
     print("Defined Signals: ",signals[:5])
     print("# of TPCs: ",len(meas))
     print("# of measurements: ",len(meas[tpc]))
+    print("# of True Charges: ",len(true_charges[tpc]))
     #print("# of signals: ",len(signals))
     response=[[kernel, kernel_ind,kernel_ind / 10, kernel_ind / 100], [kernel_ind/10, kernel_ind/20,kernel_ind/30, kernel_ind/40],[kernel_ind/100, kernel_ind/120,kernel_ind/130, kernel_ind/140]]
     
@@ -386,21 +387,11 @@ def run_SP_tred(ctx,input,kernelresp):
     t1 = time.time()
 
     print("Minimization Took Arrpoximately : ",(t1-t0)/60.0," min")
-    #print(hits_true_raw)
-    #print("SP Result: ", sp_result)
-    #FinalHits = []
-    #idx_param=0
-    #for npi,p in enumerate(hits_true_raw):
-    #    spHits=[]
-    #    for s in sp_result:
-    #        if s[1]!=npi+1:
-    #            continue
-    #        spHits.append(pixsi.hit.Hit(s[2]/s[4],s[3],s[3]+s[4]))
-    #    hits_true_raw[npi][1].append(spHits)
-    #    FinalHits.append([npi,hits_true_raw[npi][1]])
-    #import pickle
-    #pickled_object = pickle.dumps(FinalHits)
-    #np.savez("FinalHits_2d_test_long_fast.npz", data=pickled_object)
+    raw_hits,sp_hits,true_hits=pixsi.util.create_hits(meas[tpc], sp_result, true_charges[tpc],tpc,0,time_tick=0.05)
+    FinalHits=[raw_hits,sp_hits,true_hits]
+    import pickle
+    pickled_object = pickle.dumps(FinalHits)
+    np.savez("FinalHits_tred.npz", data=pickled_object)
     
 
 
@@ -521,7 +512,79 @@ def eval(ctx,input):
         plt.legend()
     #    plt.show()
     
-  
+ 
+@cli.command()
+@click.option("-i","--input", type=str, required=False,
+              help="Input Hits")
+@click.pass_context
+def eval_tred(ctx,input):
+    '''
+    Evaluate Hits created from TRED
+    '''
+    from pixsi.hit import Hit
+    import numpy as np
+    import pickle
+    loaded_data = np.load(input)["data"]
+    loaded_hits = pickle.loads(loaded_data)
+
+    
+    raw_hits = {hit.hit_ID: hit for hit in loaded_hits[0]}
+    sp_hits = {hit.hit_ID: hit for hit in loaded_hits[1]}
+    true_hits = {hit.hit_ID: hit for hit in loaded_hits[2]}
+    
+    print("Number of raw_hits = ",len(raw_hits))
+    print("Number of sp_hits = ",len(sp_hits))
+    print("Number of true_hits = ",len(true_hits))
+    
+    charge_per_hit_raw = []
+    charge_per_hit_sp = []
+    charge_per_hit_true = []
+    
+    assert len(raw_hits) == len(sp_hits) == len(true_hits), "Hit arrays are not of equal length"
+    unique_pixels=set()
+    for hit_ID in raw_hits:
+        th=true_hits[hit_ID]
+        rh=raw_hits[hit_ID]
+        sph=sp_hits[hit_ID]
+        unique_pixels.add(rh.pixel_ID)
+        charge_per_hit_raw.append(rh.charge)
+        charge_per_hit_sp.append(sph.charge)
+        charge_per_hit_true.append(th.charge)
+        
+    hit_raw = np.zeros(12000)
+    hit_sp = np.zeros(12000)
+    hit_true = np.zeros(12000)
+    for hit_ID in raw_hits:
+        th=true_hits[hit_ID]
+        rh=raw_hits[hit_ID]
+        sph=sp_hits[hit_ID]
+        pixel = next(iter(unique_pixels))
+        if th.pixel_ID==pixel:
+            hit_true[th.start_time:th.end_time+1]=th.charge
+        if rh.pixel_ID==pixel:
+            hit_raw[rh.start_time:rh.end_time+1]=rh.charge
+        if sph.pixel_ID==pixel:
+            hit_sp[sph.start_time:sph.end_time+1]=sph.charge
+            
+    import matplotlib.pyplot as plt
+    import numpy as np
+    plt.plot(charge_per_hit_true,label="True Hits")
+    plt.plot(charge_per_hit_raw,label="Raw Hits")
+    plt.plot(charge_per_hit_sp,label="SP Hits")
+    plt.xlabel("hit_ID")
+    plt.ylabel("Charge")
+    plt.legend()
+    plt.show()
+    
+    plt.plot(hit_true,label="True Hits")
+    plt.plot(hit_raw,label="Raw Hits")
+    plt.plot(hit_sp,label="SP Hits")
+    plt.xlabel("Time in ticks")
+    plt.ylabel("Charge")
+    plt.legend()
+    plt.show()
+    
+
 def main():
     cli(obj=None)
 

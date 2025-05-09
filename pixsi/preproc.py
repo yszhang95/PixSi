@@ -53,15 +53,15 @@ def extend_measurements(measurements,threshold=200,time_tick=0.05):
             new_time = time + short_hit
 
             # Check if we need to add a threshold measurement 16 prior
-            if prev_time is None or abs(new_time  - prev_time) > long_hit:
-                new_measurements.append((pixelID, new_time - short_hit, threshold))
+            #if prev_time is None or abs(new_time  - prev_time) > long_hit:
+            #    new_measurements.append((pixelID, new_time - short_hit, threshold))
 
             # Add the actual measurement
             new_measurements.append((pixelID, new_time, value))
 
             # Check if we need to add a zero measurement 28 after NOTE: Note really neede right now, but can be in a future
-            if i == len(data) - 1 or data[i + 1][0] + short_hit - new_time > long_hit:
-                new_measurements.append((pixelID, min(new_time + int(1.1/time_tick),12000), 0))
+            #if i == len(data) - 1 or data[i + 1][0] + short_hit - new_time > long_hit:
+            #    new_measurements.append((pixelID, min(new_time + int(1.1/time_tick),12000), 0))
 
             prev_time = new_time  # Update previous time
 
@@ -107,25 +107,23 @@ def define_signals_simple(measurements,kernel_len,threshold=200,time_tick=0.05):
     long_hit = int(2.8/time_tick)
     from collections import defaultdict
     pixel_data = defaultdict(list)
-    for pixelID, time, value in measurements:
+    for pixelID, time, value in sorted(measurements, key=lambda x: x[1]):
+        if value==0 or value==threshold : continue
         pixel_data[pixelID].append((time, value))
     signals = []
     ID=0
     for pixelID, data in pixel_data.items():
-        delta_t=16
-        tr=True
+        last_time = None
         for i, (time, value) in enumerate(data):
-            if value==0:
-                continue
-            if value==threshold:
-                tr=True
+            if last_time is None or time-last_time>long_hit:
                 delta_t=short_hit
-                continue
+                tr=False
             else:
                 tr=False
+                delta_t=long_hit-1 # -1 because of dead time for 1 tick, but probably not needed -> if changed might break some logic that checks hits in 2.8/time_tick radius. Double check
             signals.append((ID,pixelID,1,time-delta_t,delta_t,tr))
             ID+=1
-            delta_t=long_hit-1 # -1 because of dead time for 1 tick, but probably not needed -> if changed might break some logic that checks hits in 2.8/time_tick radius. Double check
+            last_time=time
     return signals
                 
             

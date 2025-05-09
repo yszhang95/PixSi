@@ -5,7 +5,7 @@ def getKernel(path,fr_time_tick=0.05,det_time_tick=0.1):
     #currently supports specific format. Needs generalization
     current = np.load(path)['pixel'][191-3]
     if fr_time_tick==det_time_tick:
-        current_sampled= current
+        current_sampled = current
     else:
         time_05 = np.arange(0, len(current) * fr_time_tick, fr_time_tick)[:-1]
         time_1 = np.arange(0, len(current) * fr_time_tick, det_time_tick)

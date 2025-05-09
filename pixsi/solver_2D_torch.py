@@ -71,7 +71,7 @@ def solver_2D_torch_general(measurements, signals, response, device='cuda'):
                     sample_param_map[meas_key] = []
                 sample_param_map[meas_key].append((s_id, Q_contrib.item()))
                 if samples[meas_key] not in [0, 5000]:
-                    remaining_charge[idx:] = remaining_charge[idx:].copy() - Q_contrib
+                    remaining_charge[idx:] = remaining_charge[idx:].clone() - Q_contrib
                 if torch.all(remaining_charge <= 1e-6):
                     signal_stop[key] = meas_time
                     break

@@ -143,17 +143,21 @@ def extract_TRED_by_tpc(file_name):
         pos = group['position'][:]
         charge = group['charge'][:]
         tpc_id = group['tpc_id'][:]
+        event_id = group['event_id'][:]
 
         # Prepare: tpc_id -> tuple of arrays
         data_by_tpc = defaultdict(list)
         for tid in np.unique(tpc_id):
             mask = (tpc_id == tid)
+            if tid!=1: continue
             grid_x = grid[mask][:, 0]
             grid_y = grid[mask][:, 1]
             grid_t = grid[mask][:, 2]
             chg = charge[mask]
+            event_id=event_id[mask]
             res=[]
             for i in range(len(chg)):
+                if event_id[i]!=815: continue
                 res.append(((grid_x[i],grid_y[i]),grid_t[i],chg[i]))
             data_by_tpc[tid] = res
         
@@ -164,4 +168,73 @@ def extract_TRED_by_tpc(file_name):
         effq_data = extract_group_data(f['effq'])
 
     return hits_data, effq_data
+
+
+import itertools
+# Input formats
+# measurements = [((y, z), time, charge), ...]
+# signals = [(s_id, (y, z), charge, start_time, end_time, threshold), ...]
+# true_charges = [((y, z), time, charge), ...]
+
+def create_hits(measurements, signals, true_charges,tpc_id,event_id,time_tick=0.05):
+    short_hit=int(1.6/time_tick)
+    long_hit = int(2.8/time_tick)
+    intermediate_hit = int(1.1/time_tick)
+    # Step 1: Group and process measurements
+    meas_by_pixel = defaultdict(list)
+    for pixel, time, charge in sorted(measurements, key=lambda x: x[1]):
+        meas_by_pixel[pixel].append((time, charge))
+
+    meas_hits = []
+    meas_index = {}  # Key: (pixel, time): hit_id
+    hit_id_counter = itertools.count()
+    meas_intervals = defaultdict(list)
+
+    for pixel, meas_list in meas_by_pixel.items():
+        last_time = None
+        for time, charge in meas_list:
+            if last_time is None or time - last_time > long_hit:
+                interval_len = short_hit
+                start_time = time
+            else:
+                start_time = time - intermediate_hit
+                interval_len = long_hit
+            if pixel==(14, 145):
+                print(last_time,time,start_time,interval_len)
+            end_time = start_time + interval_len
+            norm_charge = charge / interval_len
+            hid = next(hit_id_counter)
+
+            #pixsi.hit.Hit(hit_ID , tpc_ID , event_ID,pixel_ID, type, charge, start_time, end_time)
+            meas_hits.append(Hit(hid,tpc_id,event_id,pixel,'raw',norm_charge,start_time,end_time))
+            meas_index[(pixel, start_time)] = hid  # Lookup for signals
+            meas_intervals[pixel].append((hid, start_time, end_time)) # Lookup for truth
+            last_time = time
+
+    # Step 2: Process signal hits with aligned measurement ID
+    signal_hits = []
+    print("measurements = ",measurements)
+    print("meas intervals = ",meas_index)
+    print("signals = ",signals)
+    for _, pixel, charge, start_time, dt in signals:
+        matching_meas_id = meas_index.get((pixel, start_time))
+        assert matching_meas_id is not None, f"No matching measurement for signal at pixel {pixel} and start_time {start_time}"
+        signal_hits.append(Hit(matching_meas_id,tpc_id,event_id,pixel,'signal',charge,start_time,start_time+dt))
+
+    # Step 3: Process true hits aligned with meas intervals
+    true_hits = []
+    true_by_pixel = defaultdict(list)
+    for pixel, time, charge in true_charges:
+        true_by_pixel[pixel].append((time, charge))
+
+    for pixel, intervals in meas_intervals.items():
+        pixel_true_data = true_by_pixel[pixel]
+        for hid, start, end in intervals:
+            total = sum(charge for time, charge in pixel_true_data if start <= time < end)
+            interval_len = end - start
+            norm_total = total / interval_len if interval_len > 0 else 0.0
+            true_hits.append(Hit(hid,tpc_id,event_id,pixel,'true',norm_total,start,end))
+
+    return meas_hits , signal_hits , true_hits
+
 

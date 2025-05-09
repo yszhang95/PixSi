@@ -199,8 +199,6 @@ def create_hits(measurements, signals, true_charges,tpc_id,event_id,time_tick=0.
             else:
                 start_time = time - intermediate_hit
                 interval_len = long_hit
-            if pixel==(14, 145):
-                print(last_time,time,start_time,interval_len)
             end_time = start_time + interval_len
             norm_charge = charge / interval_len
             hid = next(hit_id_counter)
@@ -213,9 +211,9 @@ def create_hits(measurements, signals, true_charges,tpc_id,event_id,time_tick=0.
 
     # Step 2: Process signal hits with aligned measurement ID
     signal_hits = []
-    print("measurements = ",measurements)
-    print("meas intervals = ",meas_index)
-    print("signals = ",signals)
+    #print("measurements = ",measurements)
+    #print("meas intervals = ",meas_index)
+    #print("signals = ",signals)
     for _, pixel, charge, start_time, dt in signals:
         matching_meas_id = meas_index.get((pixel, start_time))
         assert matching_meas_id is not None, f"No matching measurement for signal at pixel {pixel} and start_time {start_time}"

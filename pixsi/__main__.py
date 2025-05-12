@@ -342,16 +342,6 @@ def run_SP_tred(ctx,input,kernelresp):
     '''
         Run Signal Processing on TRED output
     '''
-    kernel=pixsi.toy_sim.getKernel(kernelresp,0.05,0.05)*100
-    kernel_ind=pixsi.toy_sim.getKernel_Ind(kernelresp,0.05,0.05)*100
-    
-    kernel=kernel[kernel!=0]
-    kernel_ind=kernel_ind[kernel_ind>0]
-    
-    #import matplotlib.pyplot as plt
-    #plt.plot(kernel)
-    #plt.plot(kernel_ind)
-    #plt.show()
 
     meas , true_charges = pixsi.util.extract_TRED_by_tpc(input)
     import sys
@@ -368,14 +358,24 @@ def run_SP_tred(ctx,input,kernelresp):
     
     print("Extended Measurements: ",ext_meas[:5])
     
-    signals = pixsi.preproc.define_signals_simple(ext_meas,len(kernel),5000,0.05)
+    signals = pixsi.preproc.define_signals_simple(ext_meas,5000,0.05)
     print("Defined Signals: ",signals[:5])
     print("# of TPCs: ",len(meas))
     print("# of measurements: ",len(meas[tpc]))
     print("# of True Charges: ",len(true_charges[tpc]))
     #print("# of signals: ",len(signals))
-    response=[[kernel, kernel_ind,kernel_ind / 10, kernel_ind / 100], [kernel_ind/10, kernel_ind/20,kernel_ind/30, kernel_ind/40],[kernel_ind/100, kernel_ind/120,kernel_ind/130, kernel_ind/140]]
+    response=pixsi.kernels.getKernel_NDLar(kernelresp)
     
+    import matplotlib.pyplot as plt
+    plt.plot(np.cumsum(response[0][0]),label='middle pixel')
+    plt.plot(np.cumsum(response[0][1]),label='+1 right')
+    plt.plot(np.cumsum(response[1][0]),label='+1 top')
+    plt.plot(np.cumsum(response[0][2]),label='+2 right')
+    plt.plot(np.cumsum(response[2][0]),label='+2 top')
+    plt.plot(np.cumsum(response[1][1]),label='+1.5')
+    plt.plot(np.cumsum(response[2][2]),label='+2.5')
+    plt.legend()
+    plt.show()
 
         
     import time
@@ -558,19 +558,26 @@ def eval_tred(ctx,input):
         th=true_hits[hit_ID]
         rh=raw_hits[hit_ID]
         sph=sp_hits[hit_ID]
-        pixel = next(iter(unique_pixels))
+        pixel = [i for i in unique_pixels][18]
         if th.pixel_ID==pixel:
+            print("True Charge : ",th.charge)
             hit_true[th.start_time:th.end_time+1]=th.charge
         if rh.pixel_ID==pixel:
+            print("Raw Charge : ",rh.charge)
             hit_raw[rh.start_time:rh.end_time+1]=rh.charge
         if sph.pixel_ID==pixel:
+            print("SP Charge : ",sph.charge)
             hit_sp[sph.start_time:sph.end_time+1]=sph.charge
-            
+    
+    print("Total Cllected Raw Charge = ",np.sum(charge_per_hit_raw))
+    print("Total Cllected SP Charge = ",np.sum(charge_per_hit_sp))
+    print("Total Cllected TRUE Charge = ",np.sum(charge_per_hit_true))
     import matplotlib.pyplot as plt
     import numpy as np
-    plt.plot(charge_per_hit_true,label="True Hits")
-    plt.plot(charge_per_hit_raw,label="Raw Hits")
-    plt.plot(charge_per_hit_sp,label="SP Hits")
+    x = np.linspace(0,len(charge_per_hit_true),len(charge_per_hit_true))
+    plt.plot(x,charge_per_hit_true,label="True Hits")
+    plt.plot(x,charge_per_hit_raw,label="Raw Hits")
+    plt.plot(x,charge_per_hit_sp,label="SP Hits")
     plt.xlabel("hit_ID")
     plt.ylabel("Charge")
     plt.legend()

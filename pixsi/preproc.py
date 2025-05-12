@@ -102,7 +102,7 @@ def define_signals(measurements,kernel_len,threshold=200,time_tick=0.05):
     return signals
                 
 
-def define_signals_simple(measurements,kernel_len,threshold=200,time_tick=0.05):
+def define_signals_simple(measurements,threshold=200,time_tick=0.05):
     short_hit = int(1.6/time_tick)
     long_hit = int(2.8/time_tick)
     from collections import defaultdict

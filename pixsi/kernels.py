@@ -1,6 +1,21 @@
 import numpy as np
 from scipy.interpolate import interp1d
 
+
+def getKernel_NDLar(path):
+    nddata=np.load("response_38_v2b_50ns_ndlar.npy")
+    res= []
+    
+    for i in range(5):
+        line=[]
+        for j in range(5):
+            max_index = np.argmax(nddata[i*10,j*10,:])
+            saved = nddata[i*10,j*10,max_index-500:]
+            saved = saved[saved!=0] if (i,j)==(0,0) else saved[saved>0]
+            line.append(saved)
+        res.append(line)
+    return res
+
 def getKernel(path,fr_time_tick=0.05,det_time_tick=0.1):
     #currently supports specific format. Needs generalization
     current = np.load(path)['pixel'][191-3]

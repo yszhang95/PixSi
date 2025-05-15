@@ -1,6 +1,9 @@
 import numpy as np
 import math
 from .hit import Hit
+from .config import SHORT_HIT , LONG_HIT , INTERMEDIATE_HIT
+
+
 
 def uniform_charge_cum_current(q, t_start, time_int,kernel):
     tot_c = np.zeros(1600)
@@ -45,7 +48,7 @@ def uniform_charge_cum_current_part(q,time_int,kernel):
     for i in range(dt):
         current[i:i+kernel_len] += c
         
-    return np.cumsum(current)
+    return np.array(current)
 
 
 def modify_signal(signal, window_size=28):
@@ -177,9 +180,9 @@ import itertools
 # true_charges = [((y, z), time, charge), ...]
 
 def create_hits(measurements, signals, true_charges,tpc_id,event_id,time_tick=0.05):
-    short_hit=int(1.6/time_tick)
-    long_hit = int(2.8/time_tick)
-    intermediate_hit = int(1.1/time_tick)
+    short_hit=int(SHORT_HIT/time_tick)
+    long_hit = int(LONG_HIT/time_tick)
+    intermediate_hit = int(INTERMEDIATE_HIT/time_tick)
     # Step 1: Group and process measurements
     meas_by_pixel = defaultdict(list)
     for pixel, time, charge in sorted(measurements, key=lambda x: x[1]):
@@ -192,7 +195,7 @@ def create_hits(measurements, signals, true_charges,tpc_id,event_id,time_tick=0.
 
     for pixel, meas_list in meas_by_pixel.items():
         last_time = None
-        for time, charge in meas_list:
+        for time, charge in sorted(meas_list, key=lambda x: x[0]): #meas_list:
             if last_time is None or time - last_time > long_hit:
                 interval_len = short_hit
                 start_time = time
@@ -217,22 +220,48 @@ def create_hits(measurements, signals, true_charges,tpc_id,event_id,time_tick=0.
     for _, pixel, charge, start_time, dt in signals:
         matching_meas_id = meas_index.get((pixel, start_time))
         assert matching_meas_id is not None, f"No matching measurement for signal at pixel {pixel} and start_time {start_time}"
-        signal_hits.append(Hit(matching_meas_id,tpc_id,event_id,pixel,'signal',charge,start_time,start_time+dt))
+        signal_hits.append(Hit(matching_meas_id,tpc_id,event_id,pixel,'signal',charge/dt,start_time,start_time+dt))
 
-    # Step 3: Process true hits aligned with meas intervals
+    # Step 3: Process true hits with uniform 300-tick window logic
     true_hits = []
     true_by_pixel = defaultdict(list)
+    seen = 0
+    recorded = 0
+
+    # Preprocess true hits per pixel, discard small charges
     for pixel, time, charge in true_charges:
-        true_by_pixel[pixel].append((time, charge))
-
+        if abs(charge) < 1e-6:
+            continue
+        window_start = time -5
+        window_end = time + 5  # 300 ticks duration
+        charge_per_tick = charge / 10.0
+        true_by_pixel[pixel].append((window_start, window_end, charge_per_tick))
+        seen += charge
+    
+    
+    true_hit_perpix = []
+    for i in true_by_pixel:
+        tot_charge = sum([c[2] for c in true_by_pixel[i]])
+        true_hit_perpix.append(Hit(0, 0, 0, i, 'true fake', tot_charge*10.0, 0, 1))
+        
+    
+    # For each pixel, compute overlaps of true hits with measurement intervals
     for pixel, intervals in meas_intervals.items():
-        pixel_true_data = true_by_pixel[pixel]
         for hid, start, end in intervals:
-            total = sum(charge for time, charge in pixel_true_data if start <= time < end)
+            total_overlap_charge = 0.0
+            for true_start, true_end, charge_per_tick in true_by_pixel.get(pixel, []):
+                overlap_start = max(start, true_start)
+                overlap_end = min(end, true_end)
+                if overlap_start < overlap_end:
+                    overlap_len = overlap_end - overlap_start
+                    total_overlap_charge += charge_per_tick * overlap_len
             interval_len = end - start
-            norm_total = total / interval_len if interval_len > 0 else 0.0
-            true_hits.append(Hit(hid,tpc_id,event_id,pixel,'true',norm_total,start,end))
-
-    return meas_hits , signal_hits , true_hits
+            norm_charge = total_overlap_charge / interval_len if interval_len > 0 else 0.0
+            true_hits.append(Hit(hid, tpc_id, event_id, pixel, 'true', norm_charge, start, end))
+            recorded += total_overlap_charge
+            
+    print("True Charge from TRED: ",seen)
+    print("True Charge recorded in hits: ",recorded)
+    return meas_hits , signal_hits , true_hits , true_hit_perpix
 
 

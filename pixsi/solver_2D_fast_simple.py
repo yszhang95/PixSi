@@ -13,9 +13,12 @@ def objective_function(params,measurements,sample_param_map):
         if m[2]==5000 or m[2]==0:
             continue
         new_m=0
+        #if m[0]==(42,103) and m[1]==1158:
+        #    print("min call")
         for p,frac in sample_param_map[(m[0],m[1])]:
             new_m+=(params[p]*frac)
-
+        #if m[0]==(42,103) and m[1]==1158:
+        #    print(m[2],new_m)
         chi2+=(m[2]-new_m)**2
         
     fvals.append(chi2)
@@ -32,7 +35,7 @@ def solver_2D_scipy_simple(measurements,signals,response):
     }
     
     max_readout_time_ticks = 12000
-    
+    import matplotlib.pyplot as plt
     initial_guess=[]
     bounds=[]
 
@@ -85,12 +88,10 @@ def solver_2D_scipy_simple(measurements,signals,response):
             stop_time = signal_stop[(s_id, dy, dz)]
             if stop_time is not None and meas_time > stop_time:
                 break
-
             idx = int((meas_time - start_time) / (end_time - start_time) * len(conv_q))
-            idx = min(idx, len(conv_q) - 1)
+            idx = min(max(idx,0.0), len(conv_q) - 1)
             Q_contrib = remaining_charge[idx]
-
-            if Q_contrib > 0:
+            if abs(Q_contrib) > 0:
                 if (neighbor, meas_time) not in sample_param_map:
                     sample_param_map[(neighbor, meas_time)] = []
                 sample_param_map[(neighbor, meas_time)].append((s_id, Q_contrib))
@@ -99,8 +100,9 @@ def solver_2D_scipy_simple(measurements,signals,response):
                 if samples[(neighbor, meas_time)] not in [0, 5000]:
                     for j in range(idx, len(remaining_charge)):
                         remaining_charge[j] -= Q_contrib
+                        #remaining_charge[j]=max(remaining_charge[j],0.0)
 
-                if all(q <= 1e-6 for q in remaining_charge):
+                if all(abs(q) <= 1e-6 for q in remaining_charge):
                     signal_stop[(s_id, dy, dz)] = meas_time
                     break
     for s_id, s_pixel, s_value, s_t_start, s_dt, _ in sorted_signals:
@@ -110,10 +112,18 @@ def solver_2D_scipy_simple(measurements,signals,response):
         for dy in range(-R, R + 1):
             for dz in range(-R, R + 1):
                 #if dy!=0 and dz!=0: continue
+                
                 kernel = response[abs(dy)][abs(dz)]
                 conv_q = current_part(s_value, s_dt, kernel)
                 start_time = max(0, s_t_start - len(kernel))
                 end_time = s_t_start + s_dt
+                conv_q = np.cumsum(conv_q[len(conv_q)-(end_time-start_time):])
+                conv_q[conv_q<0]=0
+                if s_id==105 and dy==1 and dz==0:
+                    print(dy,dz,len(conv_q),len(kernel))
+                    print(start_time,end_time,s_t_start,s_dt)
+                    plt.plot(conv_q)
+                    plt.show()
                 process_contributions(s_id, dy, dz, s_pixel, start_time, end_time, conv_q)
 
     #print("Measurements: ",measurements[:5])
@@ -145,13 +155,12 @@ def solver_2D_scipy_simple(measurements,signals,response):
     #    print((m[1],m[2])," : ",new_m)
     
     
-    import matplotlib.pyplot as plt
     
-    #plt.plot(fvals)
-    #plt.show()
+    plt.plot(fvals)
+    plt.show()
     #result.x=[ 2.58286396e+04 ,5.52051509e+03  ,2.09004772e+04 ,6.18979215e-10 ,6.18979215e-10]
     #result.x,initial_guess
-    return [(s[0],s[1],s[2]*q,s[3],s[4]) for s,q in zip(signals,result.x)],sample_param_map
+    return [(s[0],s[1],q,s[3],s[4]) for s,q in zip(signals,result.x)],sample_param_map
     
 
 

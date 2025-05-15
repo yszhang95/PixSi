@@ -3,15 +3,35 @@ from scipy.interpolate import interp1d
 
 
 def getKernel_NDLar(path):
-    nddata=np.load("response_38_v2b_50ns_ndlar.npy")
+    nddata=np.load(path)
     res= []
     
     for i in range(5):
         line=[]
         for j in range(5):
-            max_index = np.argmax(nddata[i*10,j*10,:])
-            saved = nddata[i*10,j*10,max_index-500:]
-            saved = saved[saved!=0] if (i,j)==(0,0) else saved[saved>0]
+            #max_index = np.argmax(nddata[i*10,j*10,:])
+            saved = np.zeros(len(nddata[i*10,j*10,:]))
+            if i==j==0:
+                for k in range(0,5):
+                    for l in range(0,5):
+                        saved += nddata[i*10+k,j*10+l,:]*0.05#max_index-1500:]
+                saved/=25.0
+            elif i==0 and j!=0:
+                for k in range(-5,5):
+                    for l in range(0,5):
+                        saved += nddata[i*10+k,j*10+l,:]*0.05#max_index-1500:]
+                saved/=50.0
+            elif i!=0 and j==0:
+                for k in range(0,5):
+                    for l in range(-5,5):
+                        saved += nddata[i*10+k,j*10+l,:]*0.05#max_index-1500:]
+                saved/=50.0
+            elif i!=0 and j!=0:
+                for k in range(-5,5):
+                    for l in range(-5,5):
+                        saved += nddata[i*10+k,j*10+l,:]*0.05#max_index-1500:]
+                saved/=100.0
+            saved = saved[saved!=0] #if (i,j)==(0,0) else saved#[saved>0]
             line.append(saved)
         res.append(line)
     return res

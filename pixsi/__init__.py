@@ -8,5 +8,7 @@ from . import solver_2D_fast_simple
 from . import solver_2D_torch
 from . import util
 from . import hit
+from . import config
+
 
 from . import main

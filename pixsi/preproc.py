@@ -1,6 +1,8 @@
+from .config import SHORT_HIT , LONG_HIT , INTERMEDIATE_HIT
+
 def process_measurements(measurements,threshold=200,time_tick=0.05):
-    short_hit = int(1.6/time_tick)
-    long_hit = int(2.8/time_tick)
+    short_hit = int(SHORT_HIT/time_tick)
+    long_hit = int(LONG_HIT/time_tick)
     # Step 1: Shift all times by +1.6 µs
     measurements = [(t + short_hit, value) for t, value in measurements]
 
@@ -36,8 +38,8 @@ def process_measurements(measurements,threshold=200,time_tick=0.05):
 
 
 def extend_measurements(measurements,threshold=200,time_tick=0.05):
-    short_hit = int(1.6/time_tick)
-    long_hit = int(2.8/time_tick)
+    short_hit = int(SHORT_HIT/time_tick)
+    long_hit = int(LONG_HIT/time_tick)
     from collections import defaultdict
     pixel_data = defaultdict(list)
     
@@ -71,8 +73,8 @@ def extend_measurements(measurements,threshold=200,time_tick=0.05):
 
 
 def define_signals(measurements,kernel_len,threshold=200,time_tick=0.05):
-    short_hit = int(1.6/time_tick)
-    long_hit = int(2.8/time_tick)
+    short_hit = int(SHORT_HIT/time_tick)
+    long_hit = int(LONG_HIT/time_tick)
     from collections import defaultdict
     pixel_data = defaultdict(list)
     for pixelID, time, value in measurements:
@@ -102,14 +104,16 @@ def define_signals(measurements,kernel_len,threshold=200,time_tick=0.05):
     return signals
                 
 
-def define_signals_simple(measurements,threshold=200,time_tick=0.05):
-    short_hit = int(1.6/time_tick)
-    long_hit = int(2.8/time_tick)
+def define_signals_simple(measurements,threshold=200,time_tick=0.05,dead_time=2):
+    short_hit = int(SHORT_HIT/time_tick)
+    long_hit = int(LONG_HIT/time_tick)
     from collections import defaultdict
     pixel_data = defaultdict(list)
     for pixelID, time, value in sorted(measurements, key=lambda x: x[1]):
         if value==0 or value==threshold : continue
         pixel_data[pixelID].append((time, value))
+    for pixel in pixel_data:
+        pixel_data[pixel].sort()
     signals = []
     ID=0
     for pixelID, data in pixel_data.items():
@@ -120,7 +124,7 @@ def define_signals_simple(measurements,threshold=200,time_tick=0.05):
                 tr=False
             else:
                 tr=False
-                delta_t=long_hit-1 # -1 because of dead time for 1 tick, but probably not needed -> if changed might break some logic that checks hits in 2.8/time_tick radius. Double check
+                delta_t=long_hit
             signals.append((ID,pixelID,1,time-delta_t,delta_t,tr))
             ID+=1
             last_time=time

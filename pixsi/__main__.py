@@ -350,16 +350,16 @@ def run_SP_tred(ctx,input,kernelresp):
 
     tpc=1
     
+    #print("True Hits: ",true_charges[tpc])
     
-    
-    print("Measurements : ",meas[tpc][:5])
+    #print("Measurements : ",meas[tpc])
     
     ext_meas = pixsi.preproc.extend_measurements(meas[1],5000,0.05)
     
-    print("Extended Measurements: ",ext_meas[:5])
+    #print("Extended Measurements: ",ext_meas[:5])
     
     signals = pixsi.preproc.define_signals_simple(ext_meas,5000,0.05)
-    print("Defined Signals: ",signals[:5])
+    #print("Defined Signals: ",signals)
     print("# of TPCs: ",len(meas))
     print("# of measurements: ",len(meas[tpc]))
     print("# of True Charges: ",len(true_charges[tpc]))
@@ -376,19 +376,35 @@ def run_SP_tred(ctx,input,kernelresp):
     plt.plot(np.cumsum(response[2][2]),label='+2.5')
     plt.legend()
     plt.show()
+    
+    
+    m=meas[tpc]
+    pixelidx = [item[0][0] for item in m]
+    pixelidy = [item[0][1] for item in m]
+    time = [item[1] for item in m]
+    charge = [item[2] for item in m]
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    sc = ax.scatter(pixelidx, pixelidy, time, c=charge, cmap='viridis')
+    cb = plt.colorbar(sc, ax=ax, label='Charge')
+    ax.set_xlabel('Pixel X')
+    ax.set_ylabel('Pixel Y')
+    ax.set_zlabel('Time')
+    plt.title('3D Scatter of Pixels vs Time Colored by Charge')
 
-        
+    plt.show()
     import time
     t0 = time.time()
     
-    
+    #response=[[response[0][0]]]
     sp_result, pixel_block_param_map = pixsi.solver_2D_fast_simple.solver_2D_scipy_simple(ext_meas,signals,response)
 
     t1 = time.time()
+    #print("SP_results: ", sp_result)
 
     print("Minimization Took Arrpoximately : ",(t1-t0)/60.0," min")
-    raw_hits,sp_hits,true_hits=pixsi.util.create_hits(meas[tpc], sp_result, true_charges[tpc],tpc,0,time_tick=0.05)
-    FinalHits=[raw_hits,sp_hits,true_hits]
+    raw_hits,sp_hits,true_hits,true_hit_perpix=pixsi.util.create_hits(meas[tpc], sp_result, true_charges[tpc],tpc,0,time_tick=0.05)
+    FinalHits=[raw_hits,sp_hits,true_hits,true_hit_perpix]
     import pickle
     pickled_object = pickle.dumps(FinalHits)
     np.savez("FinalHits_tred.npz", data=pickled_object)
@@ -506,11 +522,11 @@ def eval(ctx,input):
         print("Raw: ",np.sum(dense_raw))
         print("SP: ",np.sum(dense_sp))
         time=np.linspace(0,160,1600)
-        plt.plot(time,dense_true,label="True Signal")
+        #plt.plot(time,dense_true,label="True Signal")
         plt.plot(time,dense_raw,label="Raw Hits")
         plt.plot(time,dense_sp,label="SP Hits")
         plt.legend()
-    #    plt.show()
+        plt.show()
     
  
 @cli.command()
@@ -551,23 +567,7 @@ def eval_tred(ctx,input):
         charge_per_hit_sp.append(sph.charge)
         charge_per_hit_true.append(th.charge)
         
-    hit_raw = np.zeros(12000)
-    hit_sp = np.zeros(12000)
-    hit_true = np.zeros(12000)
-    for hit_ID in raw_hits:
-        th=true_hits[hit_ID]
-        rh=raw_hits[hit_ID]
-        sph=sp_hits[hit_ID]
-        pixel = [i for i in unique_pixels][18]
-        if th.pixel_ID==pixel:
-            print("True Charge : ",th.charge)
-            hit_true[th.start_time:th.end_time+1]=th.charge
-        if rh.pixel_ID==pixel:
-            print("Raw Charge : ",rh.charge)
-            hit_raw[rh.start_time:rh.end_time+1]=rh.charge
-        if sph.pixel_ID==pixel:
-            print("SP Charge : ",sph.charge)
-            hit_sp[sph.start_time:sph.end_time+1]=sph.charge
+
     
     print("Total Cllected Raw Charge = ",np.sum(charge_per_hit_raw))
     print("Total Cllected SP Charge = ",np.sum(charge_per_hit_sp))
@@ -583,13 +583,137 @@ def eval_tred(ctx,input):
     plt.legend()
     plt.show()
     
-    plt.plot(hit_true,label="True Hits")
-    plt.plot(hit_raw,label="Raw Hits")
-    plt.plot(hit_sp,label="SP Hits")
-    plt.xlabel("Time in ticks")
-    plt.ylabel("Charge")
+    raw_hits_pixid={}
+    
+    for i in loaded_hits[0]:
+        if i.pixel_ID in raw_hits_pixid:
+            raw_hits_pixid[i.pixel_ID].append(i.charge*(i.end_time-i.start_time))
+        else:
+            raw_hits_pixid[i.pixel_ID]=[i.charge*(i.end_time-i.start_time)]
+            
+    sp_hits_pixid={}
+    
+    for i in loaded_hits[1]:
+        if i.pixel_ID in sp_hits_pixid:
+            sp_hits_pixid[i.pixel_ID].append(i.charge*(i.end_time-i.start_time))
+        else:
+            sp_hits_pixid[i.pixel_ID]=[i.charge*(i.end_time-i.start_time)]
+            
+    true_hits_pixid={}
+    
+    for i in loaded_hits[2]:
+        if i.pixel_ID in true_hits_pixid:
+            true_hits_pixid[i.pixel_ID].append(i.charge*(i.end_time-i.start_time))
+        else:
+            true_hits_pixid[i.pixel_ID]=[i.charge*(i.end_time-i.start_time)]
+    
+    raw_charge_per_pixel=[]
+    sp_charge_per_pixel=[]
+    true_charge_per_pixel=[]
+    
+    fake_true_hits = loaded_hits[3]
+    #print(fake_true_hits)
+    considered_pixels = []
+    for key in raw_hits_pixid:
+        considered_pixels.append((key[0],key[1]))
+    sorted(considered_pixels,key=lambda x:x[0])
+    raw_hits_per_pix = []
+    sp_hits_per_pix = []
+    for key in considered_pixels:
+        raw_hits_per_pix.append(len(raw_hits_pixid[key]))
+        sp_hits_per_pix.append(len(sp_hits_pixid[key]))
+        raw_charge_per_pixel.append(sum(raw_hits_pixid[key]))
+        sp_charge_per_pixel.append(sum(sp_hits_pixid[key]))
+        true_charge_per_pixel.append(sum([i.charge for i in fake_true_hits if key==i.pixel_ID]))
+    rhcp = np.array(raw_charge_per_pixel)
+    sphcp = np.array(sp_charge_per_pixel)
+    thcp = np.array(true_charge_per_pixel)
+    mean_raw = np.mean((thcp-rhcp)/thcp)
+    std_raw = np.std((thcp-rhcp)/thcp)
+
+    mean_sp = np.mean((thcp-sphcp)/thcp)
+    std_sp = np.std((thcp-sphcp)/thcp)
+
+    plt.hist((thcp-rhcp)/thcp,bins=100,range=(-1,1), alpha=0.7,label=f"Raw : $\mu$={mean_raw:.3f}, $\sigma$={std_raw:.3f}")
+    plt.hist((thcp-sphcp)/thcp,bins=100,range=(-1,1), alpha=0.7,label=f"SP : $\mu$={mean_sp:.3f}, $\sigma$={std_sp:.3f}")
+    plt.title("Charge Per Pixel")
     plt.legend()
     plt.show()
+    
+    
+    
+    
+    fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, figsize=(12, 8), sharex=True, gridspec_kw={'height_ratios': [2, 1, 1]})
+    pixels = range(len(thcp))
+    # Top plot: Charges
+    ax1.plot(pixels,rhcp, label="Measured Charge")
+    ax1.plot(pixels,sphcp, label="SP Charge")
+    ax1.plot(pixels,thcp, label="True Charge")
+    ax1.set_title("Charge Per Pixel")
+    ax1.set_ylabel("Charge")
+    ax1.legend()
+    ax1.grid(True)
+
+    # Bottom plot: Residuals as points
+    residual_raw = 100*(rhcp - thcp)/thcp
+    residual_sp = 100*(sphcp - thcp)/thcp
+    
+    ax2.scatter(pixels, residual_raw, label="Measured", alpha=0.6, s=10)
+    ax2.scatter(pixels, residual_sp, label="SP", alpha=0.6, s=10)
+    ax2.axhline(0, color='black', linestyle='--', linewidth=1)
+    ax2.set_ylabel("Residual, %")
+    ax2.set_xlabel("Pixel # sorted in increasing order along Y axis")
+    ax2.legend()
+    ax2.grid(True)
+    
+    ax3.plot(sp_hits_per_pix, label="Hits per Pixel", marker='x', linestyle='', alpha=0.6)
+    ax3.set_ylabel("Hits/Pixel")
+    ax3.set_xlabel("Pixel")
+    ax3.legend()
+    ax3.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+    
+    
+    plt.figure(figsize=(8, 5))
+    plt.scatter(raw_hits_per_pix, residual_raw, alpha=0.6, s=15)
+    plt.axhline(0, color='black', linestyle='--', linewidth=1)
+    plt.xlabel("Raw Hits per Pixel")
+    plt.ylabel("Residual 100*(Measured - True)/True")
+    plt.title("Residual vs Raw Hits per Pixel")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+    for p in range(3):
+        print("New Call")
+        hit_raw = np.zeros(12000)
+        hit_sp = np.zeros(12000)
+        hit_true = np.zeros(12000)
+        for hit_ID in raw_hits:
+            th=true_hits[hit_ID]
+            rh=raw_hits[hit_ID]
+            sph=sp_hits[hit_ID]
+            pixel = [i for i in unique_pixels][p]
+            if th.pixel_ID==pixel:
+                print("True Charge : ",th.charge)
+                hit_true[th.start_time:th.end_time+1]=th.charge
+            if rh.pixel_ID==pixel:
+                print("Raw Charge : ",rh.charge)
+                hit_raw[rh.start_time:rh.end_time+1]=rh.charge
+            if sph.pixel_ID==pixel:
+                print("SP Charge : ",sph.charge)
+                hit_sp[sph.start_time:sph.end_time+1]=sph.charge
+                print("Considered Hit: ", sph.pixel_ID)
+        plt.plot(hit_true,label="True Hits")
+        plt.plot(hit_raw,label="Raw Hits")
+        plt.plot(hit_sp,label="SP Hits")
+        plt.xlabel("Time in ticks")
+        plt.ylabel("Charge")
+        plt.xlim(0,4000)
+        plt.legend()
+        #plt.show()
     
 
 def main():

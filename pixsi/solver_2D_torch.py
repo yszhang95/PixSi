@@ -6,8 +6,10 @@ from .util import uniform_charge_cum_current_part as current_part
 def solver_2D_torch_general(measurements, signals, response, device='cuda'):
     
 
-    def current_part_torch(s_value, s_dt, kernel, device):
+    def current_part_torch(s_value, s_dt, kernel,start_time,end_time ,device):
         np_arr = current_part(s_value, s_dt, kernel)
+        np_arr = np.cumsum(np_arr[len(np_arr)-(end_time-start_time):])
+        np_arr[np_arr<0] = 0
         return torch.tensor(np_arr, device=device, dtype=torch.float32)
 
     measurement_times = {}
@@ -65,14 +67,14 @@ def solver_2D_torch_general(measurements, signals, response, device='cuda'):
             idx = min(idx, length - 1)
             Q_contrib = remaining_charge[idx]
 
-            if Q_contrib > 0:
+            if abs(Q_contrib) > 0:
                 meas_key = (neighbor, meas_time)
                 if meas_key not in sample_param_map:
                     sample_param_map[meas_key] = []
                 sample_param_map[meas_key].append((s_id, Q_contrib.item()))
                 if samples[meas_key] not in [0, 5000]:
                     remaining_charge[idx:] = remaining_charge[idx:].clone() - Q_contrib
-                if torch.all(remaining_charge <= 1e-6):
+                if torch.all(abs(remaining_charge) <= 1e-6):
                     signal_stop[key] = meas_time
                     break
 
@@ -81,9 +83,9 @@ def solver_2D_torch_general(measurements, signals, response, device='cuda'):
         for dy in range(-R, R + 1):
             for dz in range(-R, R + 1):
                 kernel = response[abs(dy)][abs(dz)]
-                conv_q = current_part_torch(s_value, s_dt, kernel, device)
                 start_time = max(0, s_t_start - len(kernel))
                 end_time = s_t_start + s_dt
+                conv_q = current_part_torch(s_value, s_dt, kernel, start_time,end_time, device)
                 process_contributions(s_id, dy, dz, s_pixel, start_time, end_time, conv_q)
 
     N_measurements = len(valid_measurements)
@@ -129,7 +131,7 @@ def solver_2D_torch_general(measurements, signals, response, device='cuda'):
 
     optimizer.step(closure)
     optimized_params = params.detach().cpu().numpy()
-    final_signals = [(s[0], s[1], s[2] * q, s[3], s[4]) for s, q in zip(signals, optimized_params)]
+    final_signals = [(s[0], s[1], q, s[3], s[4]) for s, q in zip(signals, optimized_params)]
     return final_signals, A
 
 # Example usage:

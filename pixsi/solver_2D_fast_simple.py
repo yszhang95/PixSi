@@ -92,7 +92,6 @@ def solver_2D_scipy_simple(measurements,signals,response):
                 break
             idx = int((meas_time - start_time) / (end_time - start_time) * len(conv_q))
             idx = min(max(idx,0.0), len(conv_q) - 1)
-            print(start_time,end_time,len(conv_q),meas_time)
             Q_contrib = remaining_charge[idx]
             if abs(Q_contrib) > 0:
                 if (neighbor, meas_time) not in sample_param_map:
@@ -120,7 +119,6 @@ def solver_2D_scipy_simple(measurements,signals,response):
                 conv_q = current_part(s_value, s_dt, kernel)
                 start_time = max(0, s_t_start - len(kernel))
                 end_time = start_time + s_dt
-                print(s_id,s_pixel,start_time,end_time,s_dt)
                 conv_q = np.cumsum(conv_q[len(conv_q)-(end_time-start_time):])
                 conv_q[conv_q<0]=0
                 #if s_id==105 and dy==1 and dz==0:

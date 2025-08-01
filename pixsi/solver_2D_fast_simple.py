@@ -118,7 +118,8 @@ def solver_2D_scipy_simple(measurements,signals,response):
                 kernel = response[abs(dy)][abs(dz)]
                 conv_q = current_part(s_value, s_dt, kernel)
                 start_time = max(0, s_t_start - len(kernel))
-                end_time = start_time + s_dt
+                end_time = s_t_start + s_dt
+                print(s_t_start,s_dt)
                 conv_q = np.cumsum(conv_q[len(conv_q)-(end_time-start_time):])
                 conv_q[conv_q<0]=0
                 #if s_id==105 and dy==1 and dz==0:

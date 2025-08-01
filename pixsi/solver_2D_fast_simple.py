@@ -15,11 +15,13 @@ def objective_function(params,measurements,sample_param_map):
         new_m=0
         #if m[0]==(42,103) and m[1]==1158:
         #    print("min call")
+        reg=0
         for p,frac in sample_param_map[(m[0],m[1])]:
             new_m+=(params[p]*frac)
+            reg+=params[p]**2
         #if m[0]==(42,103) and m[1]==1158:
         #    print(m[2],new_m)
-        chi2+=(m[2]-new_m)**2
+        chi2+=(m[2]-new_m)**2 #+reg*0.05
         
     fvals.append(chi2)
     return chi2
@@ -40,9 +42,9 @@ def solver_2D_scipy_simple(measurements,signals,response):
     bounds=[]
 
     for s in signals:
-        initial_guess.append(1 if s[5] else 0)
+        initial_guess.append(1 if s[5] else 10)
         bounds.append((1,None) if s[5] else (0,None))
-        
+    
     
     samples = { (m[0], m[1]): m[2] for m in measurements }
 
@@ -90,6 +92,7 @@ def solver_2D_scipy_simple(measurements,signals,response):
                 break
             idx = int((meas_time - start_time) / (end_time - start_time) * len(conv_q))
             idx = min(max(idx,0.0), len(conv_q) - 1)
+            print(start_time,end_time,len(conv_q),meas_time)
             Q_contrib = remaining_charge[idx]
             if abs(Q_contrib) > 0:
                 if (neighbor, meas_time) not in sample_param_map:
@@ -116,14 +119,15 @@ def solver_2D_scipy_simple(measurements,signals,response):
                 kernel = response[abs(dy)][abs(dz)]
                 conv_q = current_part(s_value, s_dt, kernel)
                 start_time = max(0, s_t_start - len(kernel))
-                end_time = s_t_start + s_dt
+                end_time = start_time + s_dt
+                print(s_id,s_pixel,start_time,end_time,s_dt)
                 conv_q = np.cumsum(conv_q[len(conv_q)-(end_time-start_time):])
                 conv_q[conv_q<0]=0
-                if s_id==105 and dy==1 and dz==0:
-                    print(dy,dz,len(conv_q),len(kernel))
-                    print(start_time,end_time,s_t_start,s_dt)
-                    plt.plot(conv_q)
-                    plt.show()
+                #if s_id==105 and dy==1 and dz==0:
+                #    print(dy,dz,len(conv_q),len(kernel))
+                #    print(start_time,end_time,s_t_start,s_dt)
+                #    plt.plot(conv_q)
+                #    plt.show()
                 process_contributions(s_id, dy, dz, s_pixel, start_time, end_time, conv_q)
 
     #print("Measurements: ",measurements[:5])
@@ -156,8 +160,8 @@ def solver_2D_scipy_simple(measurements,signals,response):
     
     
     
-    plt.plot(fvals)
-    plt.show()
+    #plt.plot(fvals)
+    #plt.show()
     #result.x=[ 2.58286396e+04 ,5.52051509e+03  ,2.09004772e+04 ,6.18979215e-10 ,6.18979215e-10]
     #result.x,initial_guess
     return [(s[0],s[1],q,s[3],s[4]) for s,q in zip(signals,result.x)],sample_param_map

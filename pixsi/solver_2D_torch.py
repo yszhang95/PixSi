@@ -84,7 +84,7 @@ def solver_2D_torch_general(measurements, signals, response, device='cuda'):
             for dz in range(-R, R + 1):
                 kernel = response[abs(dy)][abs(dz)]
                 start_time = max(0, s_t_start - len(kernel))
-                end_time = s_t_start + s_dt
+                end_time = start_time + s_dt
                 conv_q = current_part_torch(s_value, s_dt, kernel, start_time,end_time, device)
                 process_contributions(s_id, dy, dz, s_pixel, start_time, end_time, conv_q)
 

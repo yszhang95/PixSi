@@ -156,10 +156,10 @@ def simActivity_toy(pixels,kernel_middle,kernel_adj):
         currents[p+1]+=current_response_side
     
     import matplotlib.pyplot as plt
-    for n,i in enumerate(pixels):
-        plt.plot(i,label="charge %.2f"%n)
-    for n,i in enumerate(currents):
-        plt.plot(np.cumsum(i),label="current %.2f"%n)
+    #for n,i in enumerate(pixels):
+    #    plt.plot(i,label="charge %.2f"%n)
+    #for n,i in enumerate(currents):
+    #    plt.plot(np.cumsum(i),label="current %.2f"%n)
     
     trsh=5000
     from .preproc import process_measurements as PreProc
@@ -172,7 +172,7 @@ def simActivity_toy(pixels,kernel_middle,kernel_adj):
             #measurements.append([])
             continue
         M,q=trigger(c,trsh)
-        plt.plot(q,label="actual current %.2f"%nc)
+        #plt.plot(q,label="actual current %.2f"%nc)
         M_blocks=PreProc(M,trsh)
         for i in M:
             measurements.append((nc,i[0],i[1]))
@@ -210,8 +210,8 @@ def simActivity_toy(pixels,kernel_middle,kernel_adj):
                     h=Hit(m[1]/28,m[0]-28,m[0])
                 rawHits.append(h)
         hits.append([nc,[trueHits,rawHits]])
-    plt.legend()
-    plt.show()
+    #plt.legend()
+    #plt.show()
     
     return measurements,blocks,hits
     

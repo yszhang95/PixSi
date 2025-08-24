@@ -1,7 +1,7 @@
 import numpy as np
 import math
 from .hit import Hit
-from .config import SHORT_HIT , LONG_HIT , INTERMEDIATE_HIT
+from .config import SHORT_HIT , LONG_HIT , INTERMEDIATE_HIT , SHORT_HIT_tick , LONG_HIT_tick , INTERMEDIATE_HIT_tick
 
 
 
@@ -173,16 +173,157 @@ def extract_TRED_by_tpc(file_name):
     return hits_data, effq_data
 
 
+def extract_TRED_test(file_name):
+    key_meas = 'hits_tpc0_batch11'
+    key_meas_loc = 'hits_tpc0_batch11_location'
+    key_tru = 'effq_tpc0_batch11'
+    key_tru_loc = 'effq_tpc0_batch11_location'
+    key_wf = 'current_tpc0_batch11'
+    key_wf_loc = 'current_tpc0_batch11_location'
+    
+    #key_meas = 'hits_tpc5_batch0'
+    #key_meas_loc = 'hits_tpc5_batch0_location'
+    #key_tru = 'effq_tpc5_batch0'
+    #key_tru_loc = 'effq_tpc5_batch0_location'
+    #key_wf = 'current_tpc5_batch0'
+    #key_wf_loc = 'current_tpc5_batch0_location'
+    
+    with np.load(file_name, allow_pickle=True) as data:
+        if key_meas in data:
+            tru = data[key_tru].copy()  # .copy() to keep it after closing
+            tru_loc = data[key_tru_loc].copy()
+            meas = data[key_meas].copy()  # .copy() to keep it after closing
+            meas_loc = data[key_meas_loc].copy()
+            wf = data[key_wf].copy()
+            wf_loc =data[key_wf_loc].copy()
+        else:
+            raise KeyError(f"Key '{key_meas}' not found in the file.")
+    def getHits(arr,arr_loc,state="Hit"):
+        pixels = []
+        tot=0;
+        for n,i in enumerate(arr_loc):
+            pixel = (i[0],i[1])
+            #print(pixel)
+            if state=="Hit":
+                if np.isinf(arr[n][3]) or arr[n][3]<0: continue
+                pixels.append((pixel,i[2],arr[n][3]))
+                tot+=arr[n][3]
+            else:
+                pixels.append((pixel,i[2],arr[n][0][0]))
+        return pixels,tot
+    m,_ = getHits(meas,meas_loc)
+    print("True Extraction")
+    t,_ = getHits(tru,tru_loc)
+    w,_ = getHits(wf,wf_loc,"WF")
+    return m,t,w
+
+
 import itertools
 # Input formats
 # measurements = [((y, z), time, charge), ...]
 # signals = [(s_id, (y, z), charge, start_time, end_time, threshold), ...]
 # true_charges = [((y, z), time, charge), ...]
 
-def create_hits(measurements, signals, true_charges,tpc_id,event_id,time_tick=0.05):
-    short_hit=int(SHORT_HIT/time_tick)
-    long_hit = int(LONG_HIT/time_tick)
-    intermediate_hit = int(INTERMEDIATE_HIT/time_tick)
+
+import numpy as np
+
+def generate_hits_from_true(true_map, measurement_map, response, interval_short=32,interval_long=56, max_time=12000):
+    hits_per_pixel = {}
+    len_response = len(response)
+
+    for pixel in true_map:
+        effq_list = true_map.get(pixel, [])
+        meas_list = measurement_map.get(pixel, [])
+
+        if not effq_list:
+            continue  # skip pixels with no true charge
+
+        raw_current = np.zeros(max_time)
+
+        # Step 1: Add scaled response to raw_current
+        for t, q in effq_list:
+            start = max(0, t-len_response)
+            end = t
+            r_start = 0+len_response-(end-start)
+            raw_current[start:end] += q * response[r_start:]
+
+        # Step 2: Cumulative current
+        cumulative = np.cumsum(raw_current)
+        #if pixel!=(84, 2): continue
+        #import matplotlib.pyplot as plt
+        #plt.plot(raw_current)
+        #npe=np.array(effq_list)
+        #plt.plot(npe[:,0],npe[:,1])
+        #plt.plot(effq_list)
+        #plt.show()
+        hits = []
+
+        if meas_list:
+            # Step 3: Measurements present
+            meas_times_sorted = sorted(t for t, _ in meas_list)
+            last_meas=None
+            for t in meas_times_sorted:
+                if last_meas is None or t-last_meas>interval_long:
+                    interval=interval_short
+                    t0 = t
+                    t1 = t + interval
+                else:
+                    interval=interval_long
+                    t0 = t-INTERMEDIATE_HIT_tick
+                    t1 = t0+interval
+                last_meas=t0
+                if t1 >= max_time:
+                    continue
+
+                q_meas = cumulative[t1]# - cumulative[t0]
+                if q_meas <= 0:
+                    continue
+
+                hit = {
+                    'start_time': t0,
+                    'end_time': t1,
+                    'charge': q_meas / interval
+                }
+                hits.append(hit)
+
+                # Subtract charge from future
+                cumulative[t1:] -= q_meas
+
+            # Final leftover hit if needed
+            last_meas_end = meas_times_sorted[-1] + interval
+            remaining_charge = cumulative[-1] - cumulative[last_meas_end] if last_meas_end < max_time else 0
+            last_start = min(last_meas_end, max_time - interval)
+
+            if remaining_charge > 0:
+                final_hit = {
+                    'start_time': last_start,
+                    'end_time': last_start + interval,
+                    'charge': remaining_charge / interval
+                }
+                hits.append(final_hit)
+
+        else:
+            # Step 4: No measurements — create fallback hit
+            total_charge = cumulative[-1]
+            if total_charge > 0:
+                hit = {
+                    'start_time': 0,
+                    'end_time': interval_short,
+                    'charge': total_charge / interval_short
+                }
+                hits.append(hit)
+
+        hits_per_pixel[pixel] = hits
+
+    return hits_per_pixel
+
+
+
+
+def create_hits(measurements, signals, true_charges,tpc_id,event_id,response,time_tick=0.05):
+    short_hit=SHORT_HIT_tick #int(SHORT_HIT/time_tick)
+    long_hit =LONG_HIT_tick # int(LONG_HIT/time_tick)
+    intermediate_hit = INTERMEDIATE_HIT_tick #int(INTERMEDIATE_HIT/time_tick)
     # Step 1: Group and process measurements
     meas_by_pixel = defaultdict(list)
     for pixel, time, charge in sorted(measurements, key=lambda x: x[1]):
@@ -205,7 +346,6 @@ def create_hits(measurements, signals, true_charges,tpc_id,event_id,time_tick=0.
             end_time = start_time + interval_len
             norm_charge = charge / interval_len
             hid = next(hit_id_counter)
-
             #pixsi.hit.Hit(hit_ID , tpc_ID , event_ID,pixel_ID, type, charge, start_time, end_time)
             meas_hits.append(Hit(hid,tpc_id,event_id,pixel,'raw',norm_charge,start_time,end_time))
             meas_index[(pixel, start_time)] = hid  # Lookup for signals
@@ -232,36 +372,47 @@ def create_hits(measurements, signals, true_charges,tpc_id,event_id,time_tick=0.
     for pixel, time, charge in true_charges:
         if abs(charge) < 1e-6:
             continue
-        window_start = time -5
-        window_end = time + 5  # 300 ticks duration
-        charge_per_tick = charge / 10.0
-        true_by_pixel[pixel].append((window_start, window_end, charge_per_tick))
+        true_by_pixel[pixel].append((time, charge))
         seen += charge
     
     
-    true_hit_perpix = []
-    for i in true_by_pixel:
-        tot_charge = sum([c[2] for c in true_by_pixel[i]])
-        true_hit_perpix.append(Hit(0, 0, 0, i, 'true fake', tot_charge*10.0, 0, 1))
-        
+    true_hit_perpix = generate_hits_from_true(true_by_pixel, meas_by_pixel, response, interval_short=short_hit,interval_long=long_hit, max_time=12000)
+    #for i in true_by_pixel:
+    #    tot_charge = sum([c[2] for c in true_by_pixel[i]])
+    #    true_hit_perpix.append(Hit(0, 0, 0, i, 'true fake', tot_charge, 0, 1))
+    cnt_neg=1
+    for pixel,hits in true_hit_perpix.items():
+        for h in hits:
+            recorded+=h['charge']*(h['end_time']-h['start_time'])
+            if (pixel,h['start_time']) in meas_index :
+                id_true=meas_index[(pixel,h['start_time'])]
+            else:
+                id_true=-1*cnt_neg
+                cnt_neg+=1
+            true_hits.append(Hit(id_true,tpc_id,event_id,pixel,'true',h['charge'],h['start_time'],h['end_time']))
+    
+    eff_hits = []
+    for k,v in true_by_pixel.items():
+        for h in v:
+            eff_hits.append(Hit(0,0,0,k,'true',h[1],h[0],h[0]))
     
     # For each pixel, compute overlaps of true hits with measurement intervals
-    for pixel, intervals in meas_intervals.items():
-        for hid, start, end in intervals:
-            total_overlap_charge = 0.0
-            for true_start, true_end, charge_per_tick in true_by_pixel.get(pixel, []):
-                overlap_start = max(start, true_start)
-                overlap_end = min(end, true_end)
-                if overlap_start < overlap_end:
-                    overlap_len = overlap_end - overlap_start
-                    total_overlap_charge += charge_per_tick * overlap_len
-            interval_len = end - start
-            norm_charge = total_overlap_charge / interval_len if interval_len > 0 else 0.0
-            true_hits.append(Hit(hid, tpc_id, event_id, pixel, 'true', norm_charge, start, end))
-            recorded += total_overlap_charge
+    #for pixel, intervals in meas_intervals.items():
+    #    for hid, start, end in intervals:
+    #        total_overlap_charge = 0.0
+    #        for true_start, true_end, charge_per_tick in true_by_pixel.get(pixel, []):
+    #            overlap_start = max(start, true_start)
+    #            overlap_end = min(end, true_end)
+    #            if overlap_start < overlap_end:
+    #                overlap_len = overlap_end - overlap_start
+    #                total_overlap_charge += charge_per_tick * overlap_len
+    #        interval_len = end - start
+    #        norm_charge = total_overlap_charge / interval_len if interval_len > 0 else 0.0
+            #true_hits.append(Hit(hid, tpc_id, event_id, pixel, 'true', norm_charge, start, end))
+            #recorded += total_overlap_charge
             
     print("True Charge from TRED: ",seen)
     print("True Charge recorded in hits: ",recorded)
-    return meas_hits , signal_hits , true_hits , true_hit_perpix
+    return meas_hits , signal_hits , true_hits , true_hit_perpix , eff_hits
 
 

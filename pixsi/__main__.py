@@ -343,7 +343,8 @@ def run_SP_tred(ctx,input,kernelresp):
         Run Signal Processing on TRED output
     '''
 
-    meas , true_charges = pixsi.util.extract_TRED_by_tpc(input)
+    #meas , true_charges = pixsi.util.extract_TRED_by_tpc(input)
+    meas , true_charges, true_wfs = pixsi.util.extract_TRED_test(input)
     import sys
     import numpy as np
     np.set_printoptions(threshold=sys.maxsize)
@@ -352,14 +353,14 @@ def run_SP_tred(ctx,input,kernelresp):
     
     #print("True Hits: ",true_charges[tpc])
     
-    #print("Measurements : ",meas[tpc])
+    print("Measurements : ",meas)
     
-    ext_meas = pixsi.preproc.extend_measurements(meas[1],5000,0.05)
+    ext_meas = pixsi.preproc.extend_measurements(meas,5000,0.05)
     
-    #print("Extended Measurements: ",ext_meas[:5])
+    #print("Extended Measurements: ",ext_meas)
     
     signals = pixsi.preproc.define_signals_simple(ext_meas,5000,0.05)
-    #print("Defined Signals: ",signals)
+    print("Defined Signals: ",signals)
     print("# of TPCs: ",len(meas))
     print("# of measurements: ",len(meas[tpc]))
     print("# of True Charges: ",len(true_charges[tpc]))
@@ -374,11 +375,12 @@ def run_SP_tred(ctx,input,kernelresp):
     plt.plot(np.cumsum(response[2][0]),label='+2 top')
     plt.plot(np.cumsum(response[1][1]),label='+1.5')
     plt.plot(np.cumsum(response[2][2]),label='+2.5')
+    #plt.xlim(1111,1319)
     plt.legend()
     plt.show()
     
     
-    m=meas[tpc]
+    m=meas#[tpc]
     pixelidx = [item[0][0] for item in m]
     pixelidy = [item[0][1] for item in m]
     time = [item[1] for item in m]
@@ -403,11 +405,12 @@ def run_SP_tred(ctx,input,kernelresp):
     #print("SP_results: ", sp_result)
 
     print("Minimization Took Arrpoximately : ",(t1-t0)/60.0," min")
-    raw_hits,sp_hits,true_hits,true_hit_perpix=pixsi.util.create_hits(meas[tpc], sp_result, true_charges[tpc],tpc,0,time_tick=0.05)
-    FinalHits=[raw_hits,sp_hits,true_hits,true_hit_perpix]
+    raw_hits,sp_hits,true_hits,true_hit_perpix,eff_hits=pixsi.util.create_hits(meas, sp_result, true_charges,tpc,0,response[0][0],time_tick=0.05)
+    FinalHits=[raw_hits,sp_hits,true_hits,true_hit_perpix,eff_hits]
     import pickle
     pickled_object = pickle.dumps(FinalHits)
-    np.savez("FinalHits_tred.npz", data=pickled_object)
+    #print("WE ARE NOT SAVING ANYTHING")
+    np.savez("FinalHits_tred_nogrid_complex_noise_3p5k.npz", data=pickled_object)
     
 
 
@@ -628,15 +631,18 @@ def eval_tred(ctx,input):
     rhcp = np.array(raw_charge_per_pixel)
     sphcp = np.array(sp_charge_per_pixel)
     thcp = np.array(true_charge_per_pixel)
+        
     mean_raw = np.mean((thcp-rhcp)/thcp)
     std_raw = np.std((thcp-rhcp)/thcp)
 
     mean_sp = np.mean((thcp-sphcp)/thcp)
     std_sp = np.std((thcp-sphcp)/thcp)
 
-    plt.hist((thcp-rhcp)/thcp,bins=100,range=(-1,1), alpha=0.7,label=f"Raw : $\mu$={mean_raw:.3f}, $\sigma$={std_raw:.3f}")
-    plt.hist((thcp-sphcp)/thcp,bins=100,range=(-1,1), alpha=0.7,label=f"SP : $\mu$={mean_sp:.3f}, $\sigma$={std_sp:.3f}")
+    plt.hist((rhcp-thcp)/thcp,bins=100,range=(-1,1), alpha=0.7,label=f"Raw : $\mu$={mean_raw:.3f}, $\sigma$={std_raw:.3f}")
+    plt.hist((sphcp-thcp)/thcp,bins=100,range=(-1,1), alpha=0.7,label=f"SP : $\mu$={mean_sp:.3f}, $\sigma$={std_sp:.3f}")
     plt.title("Charge Per Pixel")
+    plt.ylabel("# of Pixels")
+    plt.xlabel("Res.=(X-True)/True, %")
     plt.legend()
     plt.show()
     
@@ -661,7 +667,7 @@ def eval_tred(ctx,input):
     ax2.scatter(pixels, residual_raw, label="Measured", alpha=0.6, s=10)
     ax2.scatter(pixels, residual_sp, label="SP", alpha=0.6, s=10)
     ax2.axhline(0, color='black', linestyle='--', linewidth=1)
-    ax2.set_ylabel("Residual, %")
+    ax2.set_ylabel("Res.=(X-True)/True, %")
     ax2.set_xlabel("Pixel # sorted in increasing order along Y axis")
     ax2.legend()
     ax2.grid(True)
@@ -680,7 +686,7 @@ def eval_tred(ctx,input):
     plt.scatter(raw_hits_per_pix, residual_raw, alpha=0.6, s=15)
     plt.axhline(0, color='black', linestyle='--', linewidth=1)
     plt.xlabel("Raw Hits per Pixel")
-    plt.ylabel("Residual 100*(Measured - True)/True")
+    plt.ylabel("Res.=(Measured - True)/True, %")
     plt.title("Residual vs Raw Hits per Pixel")
     plt.grid(True)
     plt.tight_layout()
@@ -714,6 +720,200 @@ def eval_tred(ctx,input):
         plt.xlim(0,4000)
         plt.legend()
         #plt.show()
+    
+
+@cli.command()
+@click.option("-i","--input", type=str, required=False,
+              help="Input Hits")
+@click.pass_context
+def eval_tred_true(ctx,input):
+    '''
+    Evaluate Hits created from TRED
+    '''
+    from pixsi.hit import Hit
+    import numpy as np
+    import pickle
+    import matplotlib.pyplot as plt
+    loaded_data = np.load(input)["data"]
+    loaded_hits = pickle.loads(loaded_data)
+
+    chargeunits=1
+    raw_hits = {hit.hit_ID: hit for hit in loaded_hits[0]}
+    sp_hits = {hit.hit_ID: hit for hit in loaded_hits[1]}
+    true_hits = {hit.hit_ID: hit for hit in loaded_hits[2]}
+    
+    raw_hits_per_pix = {}
+    sp_hits_per_pix = {}
+    true_hits_per_pix = {}
+    true_hits_per_pix_tot = {}
+    eff_hits_per_pix = {}
+
+    for h in loaded_hits[0]:
+        if h.pixel_ID in raw_hits_per_pix:
+            raw_hits_per_pix[h.pixel_ID].append(h)
+        else:
+            raw_hits_per_pix[h.pixel_ID]=[h]
+    for h in loaded_hits[1]:
+        if h.pixel_ID in sp_hits_per_pix:
+            sp_hits_per_pix[h.pixel_ID].append(h)
+        else:
+            sp_hits_per_pix[h.pixel_ID]=[h]
+    for h in loaded_hits[2]:
+        if h.pixel_ID in true_hits_per_pix:
+            true_hits_per_pix[h.pixel_ID].append(h)
+            true_hits_per_pix_tot[h.pixel_ID]+=h.charge/chargeunits
+        else:
+            true_hits_per_pix[h.pixel_ID]=[h]
+            true_hits_per_pix_tot[h.pixel_ID]=h.charge/chargeunits
+    for h in loaded_hits[4]:
+        if h.pixel_ID in eff_hits_per_pix:
+            eff_hits_per_pix[h.pixel_ID].append(h)
+        else:
+            eff_hits_per_pix[h.pixel_ID]=[h]
+
+
+    print("Number of raw_hits = ",len(raw_hits))
+    print("Number of sp_hits = ",len(sp_hits))
+    print("Number of true_hits = ",len(true_hits))
+    
+    count=0
+    pixels=[]
+    rch=[]
+    spch=[]
+    tch=[]
+
+    for p,rhs in raw_hits_per_pix.items():
+        #if count>16:
+        #    break
+        if p!=(197, 74):
+            continue
+        pixels.append(pixels)
+        count+=1
+        rwf = np.zeros(12000)
+        rawcharge=0
+        spcharge=0
+        tcharge=0
+        for i in rhs:
+            rwf[i.start_time:i.end_time]=i.charge #* (i.end_time-i.start_time)
+            rawcharge+=i.charge * (i.end_time-i.start_time)
+        spwf = np.zeros(12000)
+        for i in sp_hits_per_pix[p]:
+            spwf[i.start_time:i.end_time]=i.charge #* (i.end_time-i.start_time)
+            spcharge+=i.charge * (i.end_time-i.start_time)
+        twf = np.zeros(12000)
+        if p not in true_hits_per_pix: continue
+        for i in true_hits_per_pix[p]:
+            twf[i.start_time:i.end_time]=i.charge/chargeunits
+            tcharge+=i.charge*(i.end_time-i.start_time)/chargeunits
+        effwf = np.zeros(12000)
+        
+        effcharge=0
+        if p not in eff_hits_per_pix: continue
+        for i in eff_hits_per_pix[p]:
+            effwf[i.start_time]=i.charge/chargeunits
+            effcharge+=i.charge/chargeunits
+        rch.append(rawcharge)
+        spch.append(spcharge)
+        tch.append(tcharge)
+        #if abs((rawcharge-tcharge)/tcharge)>0.005:
+            #print(count)
+        if count<3: #count == 1 or count==4 or count == 15:
+            plt.title(f"Pixel # {p}")
+            plt.plot(rwf,label=f"Raw:{rawcharge:.02f}")
+            plt.plot(spwf,label=f"SP:{spcharge:.02f}")
+            plt.plot(twf,label=f"True:{tcharge:.02f}")
+            plt.plot(effwf,label=f"Eff:{effcharge:.02f}")
+            plt.legend(loc="upper right")
+            #plt.xlim(300,1900)
+            plt.show()
+    npraw = np.array(rch)
+    npsp = np.array(spch)
+    npt = np.array(tch)
+    res_r = (npraw-npt)/npt
+    res_sp = (npsp-npt)/npt
+    plt.hist(100*res_r,bins=100,range=(-2500,2500),alpha=0.7,label=f"Raw Res, $\mu=${np.median(100*res_r):.02f}, $\sigma=${np.std(100*res_r):.02f}")
+    plt.hist(100*res_sp,bins=100,range=(-2500,2500),alpha=0.7,label=f"SP Res, $\mu=${np.median(100*res_sp):.02f}, $\sigma=${np.std(100*res_sp):.02f}")
+    plt.legend(loc='upper right')
+    plt.title("Per Pixel")
+    plt.show()
+    
+    
+    res_hit_r = []
+    res_hit_sp = []
+    true_left = []
+    dif1 = []
+    dif2 = []
+    allhits = []
+    fractionhits = []
+    for k,v in raw_hits.items():
+        v_sp = sp_hits[k]
+        if k not in true_hits:
+            print("No True Info")
+            print("Reco Charge : ",v.charge ,"; SP Charge : ", v_sp.charge)
+            dif1.append(100*(v.charge-v_sp.charge)/v.charge)
+            continue
+        v_t = true_hits[k]
+        if 100*chargeunits*(v.charge - v_t.charge/chargeunits)/v_t.charge > 500:
+            print("With True and Large difference > 500%")
+            print("Reco Charge : ",v.charge ,"; SP Charge : ", v_sp.charge,"; True Charge : ",v_t.charge)
+            fractionhits.append((v.pixel_ID[0],v.pixel_ID[1],v.start_time))
+            dif2.append(100*(v.charge-v_sp.charge)/v.charge)
+        else:
+            allhits.append((v.pixel_ID[0],v.pixel_ID[1],v.start_time))
+            res_hit_r.append(100*chargeunits*(v.charge - v_t.charge/chargeunits)/v_t.charge)
+            res_hit_sp.append(100*chargeunits*(v_sp.charge-v_t.charge/chargeunits)/v_t.charge)
+    for k,v in true_hits.items():
+        if k not in raw_hits and v.pixel_ID in raw_hits_per_pix:
+            true_left.append(v.charge/1000/true_hits_per_pix_tot[v.pixel_ID])
+            if v.charge/1000/true_hits_per_pix_tot[v.pixel_ID] > 0.8:
+                print(v.pixel_ID)
+    
+    x_hits, y_hits, z_hits = zip(*allhits) if allhits else ([], [], [])
+    x_out, y_out, z_out = zip(*fractionhits) if fractionhits else ([], [], [])
+
+    # Create 3D plot
+    fig = plt.figure(figsize=(8, 6))
+    ax = fig.add_subplot(111, projection="3d")
+
+    # Scatter plots
+    ax.scatter(x_hits, y_hits, z_hits, c='blue', label="All Hits", alpha=0.16)
+    ax.scatter(x_out, y_out, z_out, c='red', label="Outliers", alpha=0.8)
+
+    # Labels and legend
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
+    ax.legend()
+    ax.set_title("3D Scatter Plot of Hits and Outliers")
+
+    plt.show()
+    
+    
+    
+    plt.hist(res_hit_r,bins=100,range=(-100,200),alpha=0.7,label=f"Raw Res, $\mu=${np.median(res_hit_r):.02f}, $\sigma=${np.std(res_hit_r):.02f}")
+    plt.hist(res_hit_sp,bins=100,range=(-100,200),alpha=0.7,label=f"SP Res, $\mu=${np.median(res_hit_sp):.02f}, $\sigma=${np.std(res_hit_sp):.02f}")
+    plt.legend(loc='upper right')
+    plt.title("Per Hit, raw-true/true <500%")
+    plt.show()
+    
+    d1 = np.array(dif1)
+    d2 = np.array(dif2)
+    
+    plt.hist(d1,bins=50,range=(-100,100),alpha=0.7,label=f"$\mu=${np.mean(d1):.02f}")
+    plt.legend(loc='upper right')
+    plt.title("Raw-SP / Raw , %  in hits without True charge")
+    plt.show()
+
+    plt.hist(d2,bins=50,range=(-100,100),alpha=0.7,label=f"$\mu=${np.mean(d2):.02f}")
+    plt.legend(loc='upper right')
+    plt.title("Raw-SP / Raw , %  in hits with extremely law True charge")
+    plt.show()
+
+    plt.hist(true_left,bins=100,range=(-1,1),alpha=0.7,label=f"True left, $\mu=${np.mean(true_left):.02f}, $\sigma=${np.std(true_left):.02f}")
+    plt.title("Per Hit Left")
+    plt.legend(loc='upper right')
+    plt.show()
+            
     
 
 def main():

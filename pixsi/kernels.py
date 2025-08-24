@@ -3,13 +3,51 @@ from scipy.interpolate import interp1d
 
 
 def getKernel_NDLar(path):
-    nddata=np.load(path)
+    nddata=np.load(path)#['response']
+    bin_tick=0.05
     res= []
-    
+    import matplotlib.pyplot as plt
     for i in range(5):
         line=[]
         for j in range(5):
             #max_index = np.argmax(nddata[i*10,j*10,:])
+            saved = np.zeros(len(nddata[i*10,j*10,:]))
+            if i==j==0:
+                for k in range(0,5):
+                    for l in range(0,5):
+                        saved += nddata[i*10+k,j*10+l,:]*bin_tick#max_index-1500:]
+                saved/=25.0
+            elif i==0 and j!=0:
+                for k in range(-5,5):
+                    for l in range(0,5):
+                        saved += nddata[i*10+k,j*10+l,:]*bin_tick#max_index-1500:]
+                saved/=50.0
+            elif i!=0 and j==0:
+                for k in range(0,5):
+                    for l in range(-5,5):
+                        saved += nddata[i*10+k,j*10+l,:]*bin_tick#max_index-1500:]
+                saved/=50.0
+            elif i!=0 and j!=0:
+                for k in range(-5,5):
+                    for l in range(-5,5):
+                        saved += nddata[i*10+k,j*10+l,:]*bin_tick#max_index-1500:]
+                saved/=100.0
+            saved = saved[saved!=0] #if (i,j)==(0,0) else saved#[saved>0]
+            line.append(saved)
+        res.append(line)
+    #plt.plot(nddata[3,4,:],label=f"path 3,4")
+    #plt.plot(nddata[4,3,:],label=f"path 4,3")
+    #plt.legend(loc='upper left')
+    #plt.show()
+    return res
+    
+def getKernel_NDLar_withgrid(path):
+    nddata=np.load(path)['response']
+    res= []
+    import matplotlib.pyplot as plt
+    for i in range(5):
+        line=[]
+        for j in range(5):
             saved = np.zeros(len(nddata[i*10,j*10,:]))
             if i==j==0:
                 for k in range(0,5):
@@ -31,9 +69,10 @@ def getKernel_NDLar(path):
                     for l in range(-5,5):
                         saved += nddata[i*10+k,j*10+l,:]*0.05#max_index-1500:]
                 saved/=100.0
-            saved = saved[saved!=0] #if (i,j)==(0,0) else saved#[saved>0]
+            saved = saved[saved!=0]
             line.append(saved)
         res.append(line)
+
     return res
 
 def getKernel(path,fr_time_tick=0.05,det_time_tick=0.1):

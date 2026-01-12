@@ -39,10 +39,15 @@ Options:
   --help               Show this message and exit.
 
 Commands:
-  eval         Evaluate Hits
-  run-1d       Toy Sim + SP for a single pixel
-  run-2d       Toy Sim + SP for two MIP tracks [NO long-range ind.]
-  run-2d-full  Toy Sim + SP for two MIP tracks with +-1 pixle for long
-               range...
+  eval               Evaluate Hits
+  eval-tred          Evaluate Hits created from TRED
+  eval-tred-true     Evaluate Hits created from TRED
+  run-1d             Toy Sim + SP for a single pixel
+  run-2d             Toy Sim + SP for two MIP tracks [NO long-range ind.]
+  run-2d-full        Toy Sim + SP for two MIP tracks with +-1 pixle for
+                     long...
+
+  run-sp-tred        Run Signal Processing on TRED output
+  run-sp-tred-burst  Run Signal Processing on TRED output with simulated...
 #+end_example
 

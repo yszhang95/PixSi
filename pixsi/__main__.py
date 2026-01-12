@@ -453,9 +453,9 @@ def run_SP_tred_burst(ctx,input,kernelresp):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
        
     
-    ker = pixsi.deconv3d.Kernel3D(response)
+    ker = pixsi.deconv3d_torch.Kernel3D(response,device=device)
 
-    engine = pixsi.deconv3d.Deco3D(ker)
+    engine = pixsi.deconv3d_torch.Deco3D(ker,device=device)
     
     
     # Choose if you want to do sand alone tests with toy simulation or run deconvolution on TRED/Data input

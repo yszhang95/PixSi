@@ -12,5 +12,6 @@ from . import config
 from . import deconv3d
 from . import deconv_visual_checks
 from . import deconv3d_demo
+from . import deconv3d_torch
 
 from . import main

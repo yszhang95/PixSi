@@ -9,6 +9,8 @@ from . import solver_2D_torch
 from . import util
 from . import hit
 from . import config
-
+from . import deconv3d
+from . import deconv_visual_checks
+from . import deconv3d_demo
 
 from . import main

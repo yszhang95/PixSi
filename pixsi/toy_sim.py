@@ -1,6 +1,31 @@
 import numpy as np
 from .kernels import *
 import math
+from .util import extract_TRED_test as readTredInput
+from tqdm import tqdm
+
+def burstMode(file_name):
+    m,t,w = readTredInput(file_name)
+    bm=[]
+    dt_sample = 7
+    dt = 16
+
+    for pixel in tqdm(w):
+        w_int = np.cumsum(pixel[2])
+
+        # Find first index where cumulative sum exceeds 5000
+        idx = np.searchsorted(w_int, 5)
+        # Make sure we have enough values for the range we're going to sample
+        if idx + dt * dt_sample >= len(w_int):
+            continue  # skip if not enough data
+        # Vectorized append (could use preallocation if needed)
+        bm.extend(
+            (pixel[0], idx + dt * s, w_int[idx + dt * s])
+            for s in range(dt_sample)
+        )
+    
+    print(t[:3])
+    return bm , t , w
 
 def current(q, z):
     c = kernel() * q

@@ -2,11 +2,28 @@ import numpy as np
 from scipy.interpolate import interp1d
 
 
-def getKernel_NDLar(path):
-    nddata=np.load(path)#['response']
-    bin_tick=0.05
+def getKernel_NDLar(path,kind = "regular"):
+    if "shield" in path:
+        nddata=np.load(path)['response']
+        bin_tick=0.1
+    else:
+        nddata=np.load(path)
+        bin_tick=0.05
     res= []
     import matplotlib.pyplot as plt
+    # this segment is for debugging : to apply specific FR instead of the averaged
+    if False:
+        for i in range(5):
+            line=[]
+            for j in range(5):
+                saved = np.zeros(len(nddata[i*10,j*10,:]))
+                saved+=nddata[i*10,j*10,:]*bin_tick
+                saved=saved[saved!=0]
+                line.append(saved)
+            res.append(line)
+
+        return res
+    #calculate average FR
     for i in range(5):
         line=[]
         for j in range(5):
@@ -35,11 +52,21 @@ def getKernel_NDLar(path):
             saved = saved[saved!=0] #if (i,j)==(0,0) else saved#[saved>0]
             line.append(saved)
         res.append(line)
-    #plt.plot(nddata[3,4,:],label=f"path 3,4")
-    #plt.plot(nddata[4,3,:],label=f"path 4,3")
+    print("Res Kernel Shape : ",len(res),len(res[0]))
+    #plt.plot(nddata[0,0,:],label=f"path 3,4")
+    #plt.plot(nddata[10,10,:],label=f"path 4,3")
     #plt.legend(loc='upper left')
+    #plt.plot(res[0][0])
     #plt.show()
-    return res
+    if kind != "regular":
+        res_cum = [[None]*5 for _ in range(5)]
+        for du in range(5):
+            for dv in range(5):
+                arr = np.asarray(res[du][dv], dtype=np.float32)
+                res_cum[du][dv] = np.cumsum(arr, dtype=np.float64).astype(np.float32)
+        return res_cum
+    else:
+        return res
     
 def getKernel_NDLar_withgrid(path):
     nddata=np.load(path)['response']

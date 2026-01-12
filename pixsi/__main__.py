@@ -2,6 +2,7 @@ import sys
 import json
 import click
 import pixsi
+import torch
 from . import units
 
 
@@ -357,7 +358,7 @@ def run_SP_tred(ctx,input,kernelresp):
     
     ext_meas = pixsi.preproc.extend_measurements(meas,5000,0.05)
     
-    #print("Extended Measurements: ",ext_meas)
+    print("Extended Measurements: ",ext_meas)
     
     signals = pixsi.preproc.define_signals_simple(ext_meas,5000,0.05)
     print("Defined Signals: ",signals)
@@ -413,6 +414,181 @@ def run_SP_tred(ctx,input,kernelresp):
     np.savez("FinalHits_tred_nogrid_complex_noise_3p5k.npz", data=pickled_object)
     
 
+
+@cli.command()
+@click.option("-i","--input", type=str, required=False,
+              help="Placeholder")
+@click.option("-k","--kernelresp",type=click.Path(),required=False,
+              help="Path to Field Response")
+@click.pass_context
+def run_SP_tred_burst(ctx,input,kernelresp):
+    '''
+        Run Signal Processing on TRED output with simulated burst mode
+    '''
+
+    #meas , true_charges = pixsi.util.extract_TRED_by_tpc(input)
+    meas , true_charges, true_wfs = pixsi.toy_sim.burstMode(input)
+    
+    
+    burst_meas = pixsi.util.build_burst_measurements(true_wfs)
+    
+    import sys
+    import numpy as np
+    np.set_printoptions(threshold=sys.maxsize)
+    ext_meas = pixsi.preproc.extend_measurements(meas,5000,0.05)
+    print("True Meas : ",true_charges)
+    #print("True WF : ",true_wfs)
+    print("Burst Meas : ",burst_meas)
+
+    response=pixsi.kernels.getKernel_NDLar(kernelresp,kind="cumulative")
+ #   print(len(response[0][0]))
+    toplot=[]
+    toplot2=[]
+    for m in meas:
+        #if m[0]!=(143, 131): continue
+        if m[0]!=(180, 47): continue
+        toplot.append([m[1],m[2]])
+    for m in meas:
+        #if m[0]!=(143, 133): continue
+        if m[0]!=(180, 50): continue
+        toplot2.append([m[1],m[2]])
+    nptoplot = np.array(toplot)
+    nptoplot2 = np.array(toplot2)
+    import matplotlib.pyplot as plt
+    
+
+    
+ #   plt.scatter(nptoplot[:,0],nptoplot[:,1],label="pixel = (143,131)")
+ #   plt.scatter(nptoplot2[:,0],nptoplot2[:,1],label="pixel = (143,133)")
+ #   plt.legend(loc='upper left')
+ #   plt.show()
+    
+   
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+       
+    
+    ker = pixsi.deconv3d.Kernel3D(response)
+    test= ker.K_delta.cpu().detach().numpy()
+    #print(test.shape)
+    #plt.plot(test[:,4,4])
+    #plt.show()
+    engine = pixsi.deconv3d.Deco3D(ker)
+    
+    
+    # Choose if you want to do sand alone tests with toy simulation or run deconvolution on TRED/Data input
+    dotests=False
+    
+    run_data=True
+    
+    
+    if dotests:
+        pixsi.deconv_visual_checks.run_demo(
+            ker, t0=380, threshold=5,
+            ramp_pre=None, lam0=1e-2, lam_hf=180, lam_exp=3.0, taper_frac=0.1,align="model", align_fractional=False
+        )
+
+
+        pixsi.deconv_visual_checks.run_perfect_reco_check(
+            ker, t0=380, sigma=4.0, total_charge=100.0,
+            lam0=0, taper_frac=0.0, use_gaussian=True, gauss_sigma_frac=500
+        )
+    
+    
+        out = pixsi.deconv3d_demo.run_demo(
+        ker,                                   # your provided kernel
+        T=12000, Nx=13, Ny=13,
+        pos_a=(7,7), t0_a=1714, sigma_a=14.0, Q_a=320.0,
+        pos_b=(7,8), t0_b=1690, sigma_b=4.0, Q_b=10.0,
+        #threshold=0.1, nsamples=25, spacing=16,
+        threshold=0, nsamples=2000, spacing=16,
+        lam0=0.0, lam_hf=155, lam_exp=3.0,
+        taper_frac_t=0.0,
+        deconv_domain="dy",
+        align="model", align_fractional=True,
+        clamp_nonneg=False,
+        show=True,
+        )
+
+    def shift_1d(arr, k):
+        out = np.zeros_like(arr)
+
+        if k > 0:
+            # shift right
+            out[k:] = arr[:-k]
+        elif k < 0:
+            # shift left
+            k = -k
+            out[:-k] = arr[k:]
+        else:
+            return arr.copy()
+
+        return out
+    #for n,m in enumerate(burst_meas):
+        #if m[0]==(75,129):
+                #burst_meas[n]=(m[0],m[1],m[2])
+
+    if run_data:
+        out = engine.run(
+            measurements=burst_meas,
+            measurement_type="cumulative",
+            true_list=true_charges, true_is_incremental=True,
+            roi_margin=0,
+            lam0=0, lam_hf=2, lam_exp=3.0,
+            align="NONEmodel", align_fractional=False,
+            # Stage B
+            refine_nonneg=False,
+            refine_iters=10,        # start with 5–20
+            refine_step=0.05,       # tune smaller if it oscillates
+            refine_lam=1e-2,        # small L2 penalty on q
+            refine_verbose=True,
+            # plotting
+            pixels_to_plot=[(342,109),(343,109)],
+            show_maps=True,
+            show=True
+        )
+#    dt_map = None
+#    dt=None
+#
+#    pixsi.deconv_sanity_checks.run_all(ker,cfg)
+
+
+#    out = engine.run(meas, cumulative=True)
+
+#    q_hat = out["q"]               # Tensor [Nt_out, Nx_roi, Ny_roi] on `device`
+#    roi   = out["roi"]             # dict with origins: {"t0": ..., "x0": ..., "y0": ...}
+#    meta  = out["meta"]
+
+#    print("Deconvolution complete.")
+#    print("q_hat shape (Nt, Nx, Ny):", tuple(q_hat.shape))
+#    print("ROI origin (indices in your input coordinate system):", roi)
+#    print("Meta:", meta)
+   
+
+#    _ = pixsi.analyze_after_deconv.analyze_and_plot(
+#    out,                        # dict returned by Deconv3D.run(...)
+#    measurements=meas,     # (x,y,t,q) or ((x,y),t,q)
+#    true_list=true_charges,        # same shape; per-interval truth if you have it
+#    response_quadrant=response,# [5][5][L] cumulative response (center not used here)
+#    dt=None,                    # set if your t are floats
+     # try the defaults first
+#    xy_mode_meas="xy",     # if you still see the left-edge yellow stripe, try "yx"
+#    xy_mode_true="xy",     # independently toggle this if your truth was built with swapped axes
+
+#    do_spatial_align_xy=True,   # will print best (dx,dy) and apply it for plots
+#    xy_align_max_shift=6,
+
+#    meas_are_cumulative=False,
+#    scale_meas_to="true",
+#    scale_deconv_to="true",
+#    do_time_align=True,
+#)
+   
+    #raw_hits,sp_hits,true_hits,true_hit_perpix,eff_hits=pixsi.util.create_hits(meas, sp_result, true_charges,tpc,0,response[0][0],time_tick=0.05)
+    #FinalHits=[raw_hits,sp_hits,true_hits,true_hit_perpix,eff_hits]
+    #import pickle
+    #pickled_object = pickle.dumps(FinalHits)
+    #print("WE ARE NOT SAVING ANYTHING")
+    #np.savez("FinalHits_tred_nogrid_complex_noise_3p5k.npz", data=pickled_object)
 
 
 
@@ -856,17 +1032,18 @@ def eval_tred_true(ctx,input):
         if 100*chargeunits*(v.charge - v_t.charge/chargeunits)/v_t.charge > 500:
             print("With True and Large difference > 500%")
             print("Reco Charge : ",v.charge ,"; SP Charge : ", v_sp.charge,"; True Charge : ",v_t.charge)
-            fractionhits.append((v.pixel_ID[0],v.pixel_ID[1],v.start_time))
+            if (v.charge-v_sp.charge)/v.charge < -0.1:
+                fractionhits.append((v.pixel_ID[0],v.pixel_ID[1],v.start_time))
             dif2.append(100*(v.charge-v_sp.charge)/v.charge)
         else:
             allhits.append((v.pixel_ID[0],v.pixel_ID[1],v.start_time))
+
             res_hit_r.append(100*chargeunits*(v.charge - v_t.charge/chargeunits)/v_t.charge)
             res_hit_sp.append(100*chargeunits*(v_sp.charge-v_t.charge/chargeunits)/v_t.charge)
     for k,v in true_hits.items():
         if k not in raw_hits and v.pixel_ID in raw_hits_per_pix:
             true_left.append(v.charge/1000/true_hits_per_pix_tot[v.pixel_ID])
-            if v.charge/1000/true_hits_per_pix_tot[v.pixel_ID] > 0.8:
-                print(v.pixel_ID)
+            
     
     x_hits, y_hits, z_hits = zip(*allhits) if allhits else ([], [], [])
     x_out, y_out, z_out = zip(*fractionhits) if fractionhits else ([], [], [])

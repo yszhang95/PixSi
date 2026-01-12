@@ -174,19 +174,33 @@ def extract_TRED_by_tpc(file_name):
 
 
 def extract_TRED_test(file_name):
-    key_meas = 'hits_tpc0_batch11'
-    key_meas_loc = 'hits_tpc0_batch11_location'
-    key_tru = 'effq_tpc0_batch11'
-    key_tru_loc = 'effq_tpc0_batch11_location'
-    key_wf = 'current_tpc0_batch11'
-    key_wf_loc = 'current_tpc0_batch11_location'
     
-    #key_meas = 'hits_tpc5_batch0'
-    #key_meas_loc = 'hits_tpc5_batch0_location'
-    #key_tru = 'effq_tpc5_batch0'
-    #key_tru_loc = 'effq_tpc5_batch0_location'
-    #key_wf = 'current_tpc5_batch0'
-    #key_wf_loc = 'current_tpc5_batch0_location'
+    grid = False
+    
+    if not grid:
+        key_meas = 'hits_tpc0_batch10'
+        key_meas_loc = 'hits_tpc0_batch10_location'
+        key_tru = 'effq_tpc0_batch10'
+        key_tru_loc = 'effq_tpc0_batch10_location'
+        key_wf = 'current_tpc0_batch10'
+        key_wf_loc = 'current_tpc0_batch10_location'
+    else:
+        key_meas = 'hits_tpc5_batch0'
+        key_meas_loc = 'hits_tpc5_batch0_location'
+        key_tru = 'effq_tpc5_batch0'
+        key_tru_loc = 'effq_tpc5_batch0_location'
+        key_wf = 'current_tpc5_batch0'
+        key_wf_loc = 'current_tpc5_batch0_location'
+        
+    point_charge = True
+    
+    if point_charge:
+        key_meas = 'hits_tpc0_batch0'
+        key_meas_loc = 'hits_tpc0_batch0_location'
+        key_tru = 'effq_tpc0_batch0'
+        key_tru_loc = 'effq_tpc0_batch0_location'
+        key_wf = 'current_tpc0_batch0'
+        key_wf_loc = 'current_tpc0_batch0_location'
     
     with np.load(file_name, allow_pickle=True) as data:
         if key_meas in data:
@@ -416,3 +430,82 @@ def create_hits(measurements, signals, true_charges,tpc_id,event_id,response,tim
     return meas_hits , signal_hits , true_hits , true_hit_perpix , eff_hits
 
 
+from typing import List, Tuple, Iterable, Union
+
+ArrayLike = Union[np.ndarray, list, tuple]
+
+def build_burst_measurements(
+    true_wfs: Iterable[Tuple[Tuple[int,int], int, ArrayLike]],
+    *,
+    threshold: float = 0.1,
+    spacing: int = 2,
+    min_delta: float = 0.00005
+) -> List[Tuple[Tuple[int,int], int, float]]:
+    """
+    Convert true cumulative waveforms into sparse burst measurements.
+ closings@grenwiveproperties.com
+ 1060.19 / 987
+    Parameters
+    ----------
+    true_wfs : iterable of ((x,y), t0, wf)
+        wf is a cumulative waveform (len ~12000). t0 is the start time index for wf.
+    threshold : float
+        First sample must be at/after the first index where wf >= threshold.
+    spacing : int
+        Step (in samples) between successive measurements.
+    min_delta : float
+        Stop after the first step where the increment between the current
+        and previous recorded values is <= min_delta. (The last sample that
+        satisfied this stopping check is INCLUDED.)
+
+    Returns
+    -------
+    burst_meas : list of ((x,y), time, charge)
+    """
+    burst_meas: List[Tuple[Tuple[int,int], int, float]] = []
+
+    for (x, y), t0, wf_def in true_wfs:
+        #if (x,y) not in ((76,129),(75,129)):
+        #    continue
+        wf = np.cumsum(wf_def)
+        w = np.asarray(wf, dtype=float)
+        if w.ndim != 1 or w.size == 0:
+            continue
+
+        # Find first index where cumulative crosses the threshold
+        idxs = np.flatnonzero(w >= threshold)
+        if idxs.size == 0:
+            continue  # never crosses threshold → no measurements for this pixel
+        i0 = int(idxs[0])
+        t_first = int(t0 + i0)
+        v_first = float(w[i0])
+        burst_meas.append(((int(x), int(y)), t_first, v_first))
+
+        # Walk forward in steps of `spacing`, always appending,
+        # and stop once increment <= min_delta (include that last one)
+        prev_idx = i0
+        prev_val = v_first
+
+        # Guard against non-positive spacing
+        step = int(spacing) if spacing > 0 else 1
+
+        while True:
+            next_idx = prev_idx + step
+            if next_idx >= w.size:
+                break
+
+            t_next = int(t0 + next_idx)
+            v_next = float(w[next_idx])
+
+            burst_meas.append(((int(x), int(y)), t_next, v_next))
+
+            # Increment over the spacing window
+            inc = abs(v_next - prev_val)  # cumulative should be non-decreasing; abs for robustness
+            if inc <= min_delta:
+                # Stop after recording the last measurement that tripped the condition
+                break
+
+            prev_idx = next_idx
+            prev_val = v_next
+
+    return burst_meas

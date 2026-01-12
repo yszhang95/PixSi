@@ -4,7 +4,7 @@ def process_measurements(measurements,threshold=200,time_tick=0.05):
     short_hit = SHORT_HIT_tick #int(SHORT_HIT/time_tick)
     long_hit = LONG_HIT_tick #int(LONG_HIT/time_tick)
     # Step 1: Shift all times by +1.6 µs
-    measurements = [(t + short_hit, value) for t, value in measurements]
+    measurements = [(t + short_hit, value) for t, value in measurements if t>=0]
 
     blocks = []  # To hold the blocks
     current_block = []  # Temporary storage for the current block
@@ -44,6 +44,7 @@ def extend_measurements(measurements,threshold=200,time_tick=0.05):
     pixel_data = defaultdict(list)
     
     for pixelID, time, value in measurements:
+        if time<0: continue
         pixel_data[pixelID].append((time, value))
 
     new_measurements = []

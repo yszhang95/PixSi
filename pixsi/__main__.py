@@ -426,7 +426,6 @@ def run_SP_tred_burst(ctx,input,kernelresp):
         Run Signal Processing on TRED output with simulated burst mode
     '''
 
-    #meas , true_charges = pixsi.util.extract_TRED_by_tpc(input)
     meas , true_charges, true_wfs = pixsi.toy_sim.burstMode(input)
     
     
@@ -436,25 +435,12 @@ def run_SP_tred_burst(ctx,input,kernelresp):
     import numpy as np
     np.set_printoptions(threshold=sys.maxsize)
     ext_meas = pixsi.preproc.extend_measurements(meas,5000,0.05)
-    print("True Meas : ",true_charges)
+    #print("True Meas : ",true_charges)
     #print("True WF : ",true_wfs)
-    print("Burst Meas : ",burst_meas)
+    #print("Burst Meas : ",burst_meas)
 
     response=pixsi.kernels.getKernel_NDLar(kernelresp,kind="cumulative")
- #   print(len(response[0][0]))
-    toplot=[]
-    toplot2=[]
-    for m in meas:
-        #if m[0]!=(143, 131): continue
-        if m[0]!=(180, 47): continue
-        toplot.append([m[1],m[2]])
-    for m in meas:
-        #if m[0]!=(143, 133): continue
-        if m[0]!=(180, 50): continue
-        toplot2.append([m[1],m[2]])
-    nptoplot = np.array(toplot)
-    nptoplot2 = np.array(toplot2)
-    import matplotlib.pyplot as plt
+
     
 
     
@@ -468,10 +454,7 @@ def run_SP_tred_burst(ctx,input,kernelresp):
        
     
     ker = pixsi.deconv3d.Kernel3D(response)
-    test= ker.K_delta.cpu().detach().numpy()
-    #print(test.shape)
-    #plt.plot(test[:,4,4])
-    #plt.show()
+
     engine = pixsi.deconv3d.Deco3D(ker)
     
     

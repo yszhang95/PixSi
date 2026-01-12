@@ -130,8 +130,7 @@ class Kernel3D:
         K_delta_np = np.empty_like(S_cum)
         K_delta_np[0, :, :] = S_cum[0, :, :]
         K_delta_np[1:, :, :] = S_cum[1:, :, :] - S_cum[:-1, :, :] #Should be uncommnted if averaging FR but for taking just regular mid pixel do not need TODO: Needs a permanent fix
-        # second floor : R1521 Feb 2
-        # thrid floor : G0136 Jan 31 / R0833 Jan 24 / R0535 Feb 3
+
         # ---- Optional normalization (off by default) ----
         if dc_mode not in ("none", "global", "center"):
             raise ValueError(f"Unknown dc_mode: {dc_mode}")

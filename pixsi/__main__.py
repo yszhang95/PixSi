@@ -1,9 +1,8 @@
 import sys
 import json
 import click
-import pixsi
 import torch
-from . import units
+import units
 
 
 @click.group()
@@ -797,8 +796,8 @@ def eval_tred(ctx,input):
     mean_sp = np.mean((thcp-sphcp)/thcp)
     std_sp = np.std((thcp-sphcp)/thcp)
 
-    plt.hist((rhcp-thcp)/thcp,bins=100,range=(-1,1), alpha=0.7,label=f"Raw : $\mu$={mean_raw:.3f}, $\sigma$={std_raw:.3f}")
-    plt.hist((sphcp-thcp)/thcp,bins=100,range=(-1,1), alpha=0.7,label=f"SP : $\mu$={mean_sp:.3f}, $\sigma$={std_sp:.3f}")
+    plt.hist((rhcp-thcp)/thcp,bins=100,range=(-1,1), alpha=0.7,label=rf"Raw : $\mu$={mean_raw:.3f}, $\sigma$={std_raw:.3f}")
+    plt.hist((sphcp-thcp)/thcp,bins=100,range=(-1,1), alpha=0.7,label=rf"SP : $\mu$={mean_sp:.3f}, $\sigma$={std_sp:.3f}")
     plt.title("Charge Per Pixel")
     plt.ylabel("# of Pixels")
     plt.xlabel("Res.=(X-True)/True, %")
@@ -990,8 +989,8 @@ def eval_tred_true(ctx,input):
     npt = np.array(tch)
     res_r = (npraw-npt)/npt
     res_sp = (npsp-npt)/npt
-    plt.hist(100*res_r,bins=100,range=(-2500,2500),alpha=0.7,label=f"Raw Res, $\mu=${np.median(100*res_r):.02f}, $\sigma=${np.std(100*res_r):.02f}")
-    plt.hist(100*res_sp,bins=100,range=(-2500,2500),alpha=0.7,label=f"SP Res, $\mu=${np.median(100*res_sp):.02f}, $\sigma=${np.std(100*res_sp):.02f}")
+    plt.hist(100*res_r,bins=100,range=(-2500,2500),alpha=0.7,label=rf"Raw Res, $\mu$={np.median(100*res_r):.02f}, $\sigma$={np.std(100*res_r):.02f}")
+    plt.hist(100*res_sp,bins=100,range=(-2500,2500),alpha=0.7,label=rf"SP Res, $\mu$={np.median(100*res_sp):.02f}, $\sigma$={np.std(100*res_sp):.02f}")
     plt.legend(loc='upper right')
     plt.title("Per Pixel")
     plt.show()
@@ -1050,8 +1049,8 @@ def eval_tred_true(ctx,input):
     
     
     
-    plt.hist(res_hit_r,bins=100,range=(-100,200),alpha=0.7,label=f"Raw Res, $\mu=${np.median(res_hit_r):.02f}, $\sigma=${np.std(res_hit_r):.02f}")
-    plt.hist(res_hit_sp,bins=100,range=(-100,200),alpha=0.7,label=f"SP Res, $\mu=${np.median(res_hit_sp):.02f}, $\sigma=${np.std(res_hit_sp):.02f}")
+    plt.hist(res_hit_r,bins=100,range=(-100,200),alpha=0.7,label=rf"Raw Res, $\mu$={np.median(res_hit_r):.02f}, $\sigma$={np.std(res_hit_r):.02f}")
+    plt.hist(res_hit_sp,bins=100,range=(-100,200),alpha=0.7,label=rf"SP Res, $\mu$={np.median(res_hit_sp):.02f}, $\sigma$={np.std(res_hit_sp):.02f}")
     plt.legend(loc='upper right')
     plt.title("Per Hit, raw-true/true <500%")
     plt.show()
@@ -1059,17 +1058,17 @@ def eval_tred_true(ctx,input):
     d1 = np.array(dif1)
     d2 = np.array(dif2)
     
-    plt.hist(d1,bins=50,range=(-100,100),alpha=0.7,label=f"$\mu=${np.mean(d1):.02f}")
+    plt.hist(d1,bins=50,range=(-100,100),alpha=0.7,label=rf"$\mu$={np.mean(d1):.02f}")
     plt.legend(loc='upper right')
     plt.title("Raw-SP / Raw , %  in hits without True charge")
     plt.show()
 
-    plt.hist(d2,bins=50,range=(-100,100),alpha=0.7,label=f"$\mu=${np.mean(d2):.02f}")
+    plt.hist(d2,bins=50,range=(-100,100),alpha=0.7,label=rf"$\mu$={np.mean(d2):.02f}")
     plt.legend(loc='upper right')
     plt.title("Raw-SP / Raw , %  in hits with extremely law True charge")
     plt.show()
 
-    plt.hist(true_left,bins=100,range=(-1,1),alpha=0.7,label=f"True left, $\mu=${np.mean(true_left):.02f}, $\sigma=${np.std(true_left):.02f}")
+    plt.hist(true_left,bins=100,range=(-1,1),alpha=0.7,label=rf"True left, $\mu$={np.mean(true_left):.02f}, $\sigma$={np.std(true_left):.02f}")
     plt.title("Per Hit Left")
     plt.legend(loc='upper right')
     plt.show()

@@ -14,7 +14,7 @@ def uniform_charge_cum_current(q, t_start, time_int,kernel):
     # Ensure time_int is treated correctly
     dt = time_int
     dq = q / dt
-    
+
     kernel_resp = kernel[kernel != 0]
     kernel_len = len(kernel_resp)
     current = np.zeros(kernel_len+time_int)
@@ -29,8 +29,8 @@ def uniform_charge_cum_current(q, t_start, time_int,kernel):
     tot_c[start:end]=c_cum[len(current)-(end-start):]
     if end<len(tot_c): tot_c[end:]=c_cum[-1]
     return tot_c
-    
-    
+
+
 def uniform_charge_cum_current_part(q,time_int,kernel):
     kernel_resp = kernel[kernel != 0]
     kernel_len = len(kernel_resp)
@@ -40,14 +40,14 @@ def uniform_charge_cum_current_part(q,time_int,kernel):
     # Ensure time_int is treated correctly
     dt = time_int
     dq = q / dt
-    
+
     current = np.zeros(kernel_len+time_int)
 
     c = kernel_resp * dq
-    
+
     for i in range(dt):
         current[i:i+kernel_len] += c
-        
+
     return np.array(current)
 
 
@@ -60,20 +60,20 @@ def modify_signal(signal, window_size=28):
         if len(non_zero_indices) == 0:
             break  # No more non-zero values
         start_index = i + non_zero_indices[0]
-        
+
         # Define the window for averaging
         end_index = min(start_index + window_size, len(signal))
         non_zero_values = modified_signal[start_index:end_index]
-        
+
         # Average all non-zero values within the window
         avg_value = np.mean(non_zero_values[non_zero_values > 0])
-        
+
         # Set the window to the averaged value
         modified_signal[start_index:end_index] = avg_value
-        
+
         # Move to the next non-zero index after the current window
         i = end_index
-    
+
     return modified_signal
 
 def make_dense_WF(arr):
@@ -81,7 +81,7 @@ def make_dense_WF(arr):
     for i in arr:
         dense_arr[int(i.start_time):int(i.end_time)]=i.charge
     return dense_arr
-        
+
 
 import numpy as np
 from sortedcontainers import SortedList
@@ -90,17 +90,17 @@ from collections import defaultdict
 def build_signal_measurement_map(measurements, signals, kernel_length_mid, kernel_length_ind):
     """
     Build a mapping from measurement indices to indices of signals contributing to it.
-    
+
     Parameters:
     - measurements: List of tuples (pixelID, measurement_value, time)
     - signals: List of tuples (spID, pixelID, signal, t_start, delta_t)
     - kernel_length_mid: Influence duration for the same pixel
     - kernel_length_ind: Influence duration for neighboring pixels
-    
+
     Returns:
     - measurement_signal_map: Dictionary {measurement_index: [signal_indices]}
     """
-    
+
     # Sort signals by start time to allow efficient searching
     signals = sorted(signals, key=lambda s: s[3])  # Sort by t_start
     signal_start_times = np.array([s[3] for s in signals])  # t_start values for fast lookup
@@ -108,7 +108,7 @@ def build_signal_measurement_map(measurements, signals, kernel_length_mid, kerne
 
     # Use SortedList for fast insertion and range search
     active_signals = SortedList()
-    
+
     # Process each measurement and find contributing signals
     for meas_idx, (m_pixel, _, m_time) in enumerate(measurements):
         contributing_signals = []
@@ -135,7 +135,7 @@ def build_signal_measurement_map(measurements, signals, kernel_length_mid, kerne
 
     return signal_map
 
-    
+
 import h5py
 from collections import defaultdict
 
@@ -163,7 +163,7 @@ def extract_TRED_by_tpc(file_name):
                 if event_id[i]!=815: continue
                 res.append(((grid_x[i],grid_y[i]),grid_t[i],chg[i]))
             data_by_tpc[tid] = res
-        
+
         return data_by_tpc
 
     with h5py.File(file_name, 'r') as f:
@@ -174,16 +174,16 @@ def extract_TRED_by_tpc(file_name):
 
 
 def extract_TRED_test(file_name):
-    
+
     grid = False
-    
+
     if not grid:
-        key_meas = 'hits_tpc0_batch10'
-        key_meas_loc = 'hits_tpc0_batch10_location'
-        key_tru = 'effq_tpc0_batch10'
-        key_tru_loc = 'effq_tpc0_batch10_location'
-        key_wf = 'current_tpc0_batch10'
-        key_wf_loc = 'current_tpc0_batch10_location'
+        key_meas = 'hits_tpc0_batch11'
+        key_meas_loc = 'hits_tpc0_batch11_location'
+        key_tru = 'effq_tpc0_batch11'
+        key_tru_loc = 'effq_tpc0_batch11_location'
+        key_wf = 'current_tpc0_batch11'
+        key_wf_loc = 'current_tpc0_batch11_location'
     else:
         key_meas = 'hits_tpc5_batch0'
         key_meas_loc = 'hits_tpc5_batch0_location'
@@ -191,9 +191,9 @@ def extract_TRED_test(file_name):
         key_tru_loc = 'effq_tpc5_batch0_location'
         key_wf = 'current_tpc5_batch0'
         key_wf_loc = 'current_tpc5_batch0_location'
-        
-    point_charge = True
-    
+
+    point_charge = False
+
     if point_charge:
         key_meas = 'hits_tpc0_batch0'
         key_meas_loc = 'hits_tpc0_batch0_location'
@@ -201,7 +201,7 @@ def extract_TRED_test(file_name):
         key_tru_loc = 'effq_tpc0_batch0_location'
         key_wf = 'current_tpc0_batch0'
         key_wf_loc = 'current_tpc0_batch0_location'
-    
+
     with np.load(file_name, allow_pickle=True) as data:
         if key_meas in data:
             tru = data[key_tru].copy()  # .copy() to keep it after closing
@@ -388,8 +388,8 @@ def create_hits(measurements, signals, true_charges,tpc_id,event_id,response,tim
             continue
         true_by_pixel[pixel].append((time, charge))
         seen += charge
-    
-    
+
+
     true_hit_perpix = generate_hits_from_true(true_by_pixel, meas_by_pixel, response, interval_short=short_hit,interval_long=long_hit, max_time=12000)
     #for i in true_by_pixel:
     #    tot_charge = sum([c[2] for c in true_by_pixel[i]])
@@ -404,12 +404,12 @@ def create_hits(measurements, signals, true_charges,tpc_id,event_id,response,tim
                 id_true=-1*cnt_neg
                 cnt_neg+=1
             true_hits.append(Hit(id_true,tpc_id,event_id,pixel,'true',h['charge'],h['start_time'],h['end_time']))
-    
+
     eff_hits = []
     for k,v in true_by_pixel.items():
         for h in v:
             eff_hits.append(Hit(0,0,0,k,'true',h[1],h[0],h[0]))
-    
+
     # For each pixel, compute overlaps of true hits with measurement intervals
     #for pixel, intervals in meas_intervals.items():
     #    for hid, start, end in intervals:
@@ -424,7 +424,7 @@ def create_hits(measurements, signals, true_charges,tpc_id,event_id,response,tim
     #        norm_charge = total_overlap_charge / interval_len if interval_len > 0 else 0.0
             #true_hits.append(Hit(hid, tpc_id, event_id, pixel, 'true', norm_charge, start, end))
             #recorded += total_overlap_charge
-            
+
     print("True Charge from TRED: ",seen)
     print("True Charge recorded in hits: ",recorded)
     return meas_hits , signal_hits , true_hits , true_hit_perpix , eff_hits

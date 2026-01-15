@@ -2,7 +2,10 @@ import sys
 import json
 import click
 import torch
-import units
+
+import pixsi
+from pixsi import units
+
 
 
 @click.group()
@@ -31,7 +34,7 @@ def run_1D(ctx,input,kernelresp):
     '''
     Toy Sim + SP for a single pixel
     '''
-    
+
     if not kernelresp:
         print("Path to FR was not provided. Using Toy Kernel")
         kernel=pixsi.toy_sim.kernel()
@@ -55,8 +58,8 @@ def run_1D(ctx,input,kernelresp):
     plt.show()
     #Get example induced Current
     current_response = pixsi.toy_sim.compute_current(true_signal, kernel, time_steps)
-    
-    
+
+
     trsh=0.001
     #Get example sparce triggered mesurements (time,value)
     M,q=pixsi.toy_sim.trigger(current_response,trsh)
@@ -76,17 +79,17 @@ def run_1D(ctx,input,kernelresp):
     m_dense=np.zeros(len(time_steps))
     for i in M:
         m_dense[i[0]]=i[1]
-    
+
     #Devide Measurements into blocks
     M_blocks=pixsi.preproc.process_measurements(M,trsh)
-    
+
     #Fit each block
     RecoveredSignals=[]
     for n,block in enumerate(M_blocks):
         result = pixsi.solver.solver_scipy(block,kernel) #'L-BFGS-B' , SLSQP
         RecoveredSignals.append(result)
-    
-    
+
+
     #Plot Results
     lk=len(kernel[kernel!=0])
     print(RecoveredSignals,lk)
@@ -105,7 +108,7 @@ def run_1D(ctx,input,kernelresp):
     t1=np.linspace(0,160,1600)
     plt.plot(t1,Recovedred_dense,label="Recovered Signal ")
     plt.plot(time_steps, true_signal*1, label="True Signal (Charge)", linestyle="--")
-    
+
     modified_signal = np.zeros(len(true_signal))
     dt1_true=M_blocks[0][0][0]+lk-63
     dt2_true=16
@@ -219,7 +222,7 @@ def run_2D(ctx,input,kernelresp):
                 t=t+16 if n==0 else t+28
         #Save hits
         FinalHits.append([pn,[trueHits,rawHits,spHits]])
-    
+
     for n,p in enumerate(FinalHits):
         if n!=1:
             continue
@@ -245,7 +248,7 @@ def run_2D(ctx,input,kernelresp):
     np.savez("FinalHits.npz", data=pickled_object)
     #loaded_data = np.load("my_object.npz")["data"]
     #loaded_object = pickle.loads(loaded_data)
-  
+
 
 @cli.command()
 @click.option("-i","--input", type=str, required=False,
@@ -286,31 +289,31 @@ def run_2D_full(ctx,input,kernelresp):
     #pixels=[pixels[0]]
     print("Used Pixels: ",len(pixels))
     meas,blocks,hits_true_raw = pixsi.toy_sim.simActivity_toy(pixels,kernel,kernel_ind)
-    
+
     #print("Measurements : ",meas)
-    
+
     ext_meas = pixsi.preproc.extend_measurements(meas,5000) # only shifts measurements by 1.6 but has an ability to add threshold measurement upfront and possibly zero measurement at the end of the sequence
-    
+
     #print("Extended Measurements: ",ext_meas)
-    
+
     #signals = pixsi.preproc.define_signals(ext_meas,len(kernel),5000)
     signals = pixsi.preproc.define_signals_simple(ext_meas,len(kernel),5000)
     #print("Defined Signals: ",signals)
     print("# of measurements: ",len(meas))
     print("# of signals: ",len(signals))
     response=[[kernel, kernel_ind], [kernel_ind, kernel_ind]]
-    
+
     from .util import uniform_charge_cum_current_part as current_part
 
-        
+
     import time
     t0 = time.time()
-    
-    
+
+
     sp_result, pixel_block_param_map = pixsi.solver_2D_fast_simple.solver_2D_scipy_simple(ext_meas,signals,response)
-    
+
     #sp_result, pixel_block_param_map = pixsi.solver_2D.solver_2D_scipy(blocks,kernel,kernel_ind)
-    
+
     t1 = time.time()
 
     print("Minimization Took Arrpoximately : ",(t1-t0)/60.0," min")
@@ -329,7 +332,7 @@ def run_2D_full(ctx,input,kernelresp):
     import pickle
     pickled_object = pickle.dumps(FinalHits)
     np.savez("FinalHits_2d_test_long_fast.npz", data=pickled_object)
-    
+
 
 
 @cli.command()
@@ -350,15 +353,15 @@ def run_SP_tred(ctx,input,kernelresp):
     np.set_printoptions(threshold=sys.maxsize)
 
     tpc=1
-    
+
     #print("True Hits: ",true_charges[tpc])
-    
+
     print("Measurements : ",meas)
-    
+
     ext_meas = pixsi.preproc.extend_measurements(meas,5000,0.05)
-    
+
     print("Extended Measurements: ",ext_meas)
-    
+
     signals = pixsi.preproc.define_signals_simple(ext_meas,5000,0.05)
     print("Defined Signals: ",signals)
     print("# of TPCs: ",len(meas))
@@ -366,7 +369,7 @@ def run_SP_tred(ctx,input,kernelresp):
     print("# of True Charges: ",len(true_charges[tpc]))
     #print("# of signals: ",len(signals))
     response=pixsi.kernels.getKernel_NDLar(kernelresp)
-    
+
     import matplotlib.pyplot as plt
     plt.plot(np.cumsum(response[0][0]),label='middle pixel')
     plt.plot(np.cumsum(response[0][1]),label='+1 right')
@@ -378,8 +381,8 @@ def run_SP_tred(ctx,input,kernelresp):
     #plt.xlim(1111,1319)
     plt.legend()
     plt.show()
-    
-    
+
+
     m=meas#[tpc]
     pixelidx = [item[0][0] for item in m]
     pixelidy = [item[0][1] for item in m]
@@ -397,7 +400,7 @@ def run_SP_tred(ctx,input,kernelresp):
     plt.show()
     import time
     t0 = time.time()
-    
+
     #response=[[response[0][0]]]
     sp_result, pixel_block_param_map = pixsi.solver_2D_fast_simple.solver_2D_scipy_simple(ext_meas,signals,response)
 
@@ -411,7 +414,7 @@ def run_SP_tred(ctx,input,kernelresp):
     pickled_object = pickle.dumps(FinalHits)
     #print("WE ARE NOT SAVING ANYTHING")
     np.savez("FinalHits_tred_nogrid_complex_noise_3p5k.npz", data=pickled_object)
-    
+
 
 
 @cli.command()
@@ -426,10 +429,10 @@ def run_SP_tred_burst(ctx,input,kernelresp):
     '''
 
     meas , true_charges, true_wfs = pixsi.toy_sim.burstMode(input)
-    
-    
+
+
     burst_meas = pixsi.util.build_burst_measurements(true_wfs)
-    
+
     import sys
     import numpy as np
     np.set_printoptions(threshold=sys.maxsize)
@@ -440,29 +443,29 @@ def run_SP_tred_burst(ctx,input,kernelresp):
 
     response=pixsi.kernels.getKernel_NDLar(kernelresp,kind="cumulative")
 
-    
 
-    
+
+
  #   plt.scatter(nptoplot[:,0],nptoplot[:,1],label="pixel = (143,131)")
  #   plt.scatter(nptoplot2[:,0],nptoplot2[:,1],label="pixel = (143,133)")
  #   plt.legend(loc='upper left')
  #   plt.show()
-    
-   
+
+
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-       
-    
+
+
     ker = pixsi.deconv3d_torch.Kernel3D(response,device=device)
 
     engine = pixsi.deconv3d_torch.Deco3D(ker,device=device)
-    
-    
+
+
     # Choose if you want to do sand alone tests with toy simulation or run deconvolution on TRED/Data input
     dotests=False
-    
+
     run_data=True
-    
-    
+
+
     if dotests:
         pixsi.deconv_visual_checks.run_demo(
             ker, t0=380, threshold=5,
@@ -474,8 +477,8 @@ def run_SP_tred_burst(ctx,input,kernelresp):
             ker, t0=380, sigma=4.0, total_charge=100.0,
             lam0=0, taper_frac=0.0, use_gaussian=True, gauss_sigma_frac=500
         )
-    
-    
+
+
         out = pixsi.deconv3d_demo.run_demo(
         ker,                                   # your provided kernel
         T=12000, Nx=13, Ny=13,
@@ -544,7 +547,7 @@ def run_SP_tred_burst(ctx,input,kernelresp):
 #    print("q_hat shape (Nt, Nx, Ny):", tuple(q_hat.shape))
 #    print("ROI origin (indices in your input coordinate system):", roi)
 #    print("Meta:", meta)
-   
+
 
 #    _ = pixsi.analyze_after_deconv.analyze_and_plot(
 #    out,                        # dict returned by Deconv3D.run(...)
@@ -564,7 +567,7 @@ def run_SP_tred_burst(ctx,input,kernelresp):
 #    scale_deconv_to="true",
 #    do_time_align=True,
 #)
-   
+
     #raw_hits,sp_hits,true_hits,true_hit_perpix,eff_hits=pixsi.util.create_hits(meas, sp_result, true_charges,tpc,0,response[0][0],time_tick=0.05)
     #FinalHits=[raw_hits,sp_hits,true_hits,true_hit_perpix,eff_hits]
     #import pickle
@@ -592,7 +595,7 @@ def eval(ctx,input):
     nonzerohits_true=[]
     nonzerohits_raw=[]
     nonzerohits_sp=[]
-    
+
     totCharge_true=[]
     totCharge_raw=[]
     totCharge_sp=[]
@@ -616,19 +619,19 @@ def eval(ctx,input):
             nonzerohits_true.append(0)
             totCharge_true.append(0)
             tStart_true.append(0)
-        
+
         nonzerohits_raw.append(np.sum([t.charge>1 for t in rh]))
         nonzerohits_sp.append(np.sum([t.charge>1 for t in sph]))
-        
+
         totCharge_raw.append(np.sum([t.charge*(t.end_time-t.start_time) for t in rh]))
         totCharge_sp.append(np.sum([t.charge*(t.end_time-t.start_time) for t in sph]))
-        
+
         tStart_raw.append(rh[0].start_time)
         tStart_sp.append(sph[0].start_time)
-        
+
     x=np.linspace(0,len(loaded_hits)-adj,len(loaded_hits)-adj)
     import matplotlib.pyplot as plt
-    
+
     fig, axs = plt.subplots(3, 1, figsize=(10, 8))
     axs[0].plot(x, nonzerohits_true, label="TrueHits", color='b')
     axs[0].plot(x, nonzerohits_raw, label="RawHits", color='g')
@@ -663,7 +666,7 @@ def eval(ctx,input):
     plt.hist((tru_np[tru_np>0]-raw_np[raw_np>0])/tru_np[tru_np>0],label="Raw Meas")
     plt.hist((tru_np[tru_np>0]-sp_np[sp_np>0])/tru_np[tru_np>0],label="SP Meas")
     plt.legend()
-        
+
     plt.xlabel('$(Charge_{True}-Charge_{meas})/Charge_{True}$')
     plt.ylabel('# of Pixels')
     plt.title('Observed Charge Per Pixel')
@@ -688,8 +691,8 @@ def eval(ctx,input):
         plt.plot(time,dense_sp,label="SP Hits")
         plt.legend()
         plt.show()
-    
- 
+
+
 @cli.command()
 @click.option("-i","--input", type=str, required=False,
               help="Input Hits")
@@ -704,19 +707,19 @@ def eval_tred(ctx,input):
     loaded_data = np.load(input)["data"]
     loaded_hits = pickle.loads(loaded_data)
 
-    
+
     raw_hits = {hit.hit_ID: hit for hit in loaded_hits[0]}
     sp_hits = {hit.hit_ID: hit for hit in loaded_hits[1]}
     true_hits = {hit.hit_ID: hit for hit in loaded_hits[2]}
-    
+
     print("Number of raw_hits = ",len(raw_hits))
     print("Number of sp_hits = ",len(sp_hits))
     print("Number of true_hits = ",len(true_hits))
-    
+
     charge_per_hit_raw = []
     charge_per_hit_sp = []
     charge_per_hit_true = []
-    
+
     assert len(raw_hits) == len(sp_hits) == len(true_hits), "Hit arrays are not of equal length"
     unique_pixels=set()
     for hit_ID in raw_hits:
@@ -727,9 +730,9 @@ def eval_tred(ctx,input):
         charge_per_hit_raw.append(rh.charge)
         charge_per_hit_sp.append(sph.charge)
         charge_per_hit_true.append(th.charge)
-        
 
-    
+
+
     print("Total Cllected Raw Charge = ",np.sum(charge_per_hit_raw))
     print("Total Cllected SP Charge = ",np.sum(charge_per_hit_sp))
     print("Total Cllected TRUE Charge = ",np.sum(charge_per_hit_true))
@@ -743,35 +746,35 @@ def eval_tred(ctx,input):
     plt.ylabel("Charge")
     plt.legend()
     plt.show()
-    
+
     raw_hits_pixid={}
-    
+
     for i in loaded_hits[0]:
         if i.pixel_ID in raw_hits_pixid:
             raw_hits_pixid[i.pixel_ID].append(i.charge*(i.end_time-i.start_time))
         else:
             raw_hits_pixid[i.pixel_ID]=[i.charge*(i.end_time-i.start_time)]
-            
+
     sp_hits_pixid={}
-    
+
     for i in loaded_hits[1]:
         if i.pixel_ID in sp_hits_pixid:
             sp_hits_pixid[i.pixel_ID].append(i.charge*(i.end_time-i.start_time))
         else:
             sp_hits_pixid[i.pixel_ID]=[i.charge*(i.end_time-i.start_time)]
-            
+
     true_hits_pixid={}
-    
+
     for i in loaded_hits[2]:
         if i.pixel_ID in true_hits_pixid:
             true_hits_pixid[i.pixel_ID].append(i.charge*(i.end_time-i.start_time))
         else:
             true_hits_pixid[i.pixel_ID]=[i.charge*(i.end_time-i.start_time)]
-    
+
     raw_charge_per_pixel=[]
     sp_charge_per_pixel=[]
     true_charge_per_pixel=[]
-    
+
     fake_true_hits = loaded_hits[3]
     #print(fake_true_hits)
     considered_pixels = []
@@ -789,7 +792,7 @@ def eval_tred(ctx,input):
     rhcp = np.array(raw_charge_per_pixel)
     sphcp = np.array(sp_charge_per_pixel)
     thcp = np.array(true_charge_per_pixel)
-        
+
     mean_raw = np.mean((thcp-rhcp)/thcp)
     std_raw = np.std((thcp-rhcp)/thcp)
 
@@ -803,10 +806,10 @@ def eval_tred(ctx,input):
     plt.xlabel("Res.=(X-True)/True, %")
     plt.legend()
     plt.show()
-    
-    
-    
-    
+
+
+
+
     fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, figsize=(12, 8), sharex=True, gridspec_kw={'height_ratios': [2, 1, 1]})
     pixels = range(len(thcp))
     # Top plot: Charges
@@ -821,7 +824,7 @@ def eval_tred(ctx,input):
     # Bottom plot: Residuals as points
     residual_raw = 100*(rhcp - thcp)/thcp
     residual_sp = 100*(sphcp - thcp)/thcp
-    
+
     ax2.scatter(pixels, residual_raw, label="Measured", alpha=0.6, s=10)
     ax2.scatter(pixels, residual_sp, label="SP", alpha=0.6, s=10)
     ax2.axhline(0, color='black', linestyle='--', linewidth=1)
@@ -829,7 +832,7 @@ def eval_tred(ctx,input):
     ax2.set_xlabel("Pixel # sorted in increasing order along Y axis")
     ax2.legend()
     ax2.grid(True)
-    
+
     ax3.plot(sp_hits_per_pix, label="Hits per Pixel", marker='x', linestyle='', alpha=0.6)
     ax3.set_ylabel("Hits/Pixel")
     ax3.set_xlabel("Pixel")
@@ -838,8 +841,8 @@ def eval_tred(ctx,input):
 
     plt.tight_layout()
     plt.show()
-    
-    
+
+
     plt.figure(figsize=(8, 5))
     plt.scatter(raw_hits_per_pix, residual_raw, alpha=0.6, s=15)
     plt.axhline(0, color='black', linestyle='--', linewidth=1)
@@ -878,7 +881,7 @@ def eval_tred(ctx,input):
         plt.xlim(0,4000)
         plt.legend()
         #plt.show()
-    
+
 
 @cli.command()
 @click.option("-i","--input", type=str, required=False,
@@ -899,7 +902,7 @@ def eval_tred_true(ctx,input):
     raw_hits = {hit.hit_ID: hit for hit in loaded_hits[0]}
     sp_hits = {hit.hit_ID: hit for hit in loaded_hits[1]}
     true_hits = {hit.hit_ID: hit for hit in loaded_hits[2]}
-    
+
     raw_hits_per_pix = {}
     sp_hits_per_pix = {}
     true_hits_per_pix = {}
@@ -933,7 +936,7 @@ def eval_tred_true(ctx,input):
     print("Number of raw_hits = ",len(raw_hits))
     print("Number of sp_hits = ",len(sp_hits))
     print("Number of true_hits = ",len(true_hits))
-    
+
     count=0
     pixels=[]
     rch=[]
@@ -964,7 +967,7 @@ def eval_tred_true(ctx,input):
             twf[i.start_time:i.end_time]=i.charge/chargeunits
             tcharge+=i.charge*(i.end_time-i.start_time)/chargeunits
         effwf = np.zeros(12000)
-        
+
         effcharge=0
         if p not in eff_hits_per_pix: continue
         for i in eff_hits_per_pix[p]:
@@ -994,8 +997,8 @@ def eval_tred_true(ctx,input):
     plt.legend(loc='upper right')
     plt.title("Per Pixel")
     plt.show()
-    
-    
+
+
     res_hit_r = []
     res_hit_sp = []
     true_left = []
@@ -1025,8 +1028,8 @@ def eval_tred_true(ctx,input):
     for k,v in true_hits.items():
         if k not in raw_hits and v.pixel_ID in raw_hits_per_pix:
             true_left.append(v.charge/1000/true_hits_per_pix_tot[v.pixel_ID])
-            
-    
+
+
     x_hits, y_hits, z_hits = zip(*allhits) if allhits else ([], [], [])
     x_out, y_out, z_out = zip(*fractionhits) if fractionhits else ([], [], [])
 
@@ -1046,18 +1049,18 @@ def eval_tred_true(ctx,input):
     ax.set_title("3D Scatter Plot of Hits and Outliers")
 
     plt.show()
-    
-    
-    
+
+
+
     plt.hist(res_hit_r,bins=100,range=(-100,200),alpha=0.7,label=rf"Raw Res, $\mu$={np.median(res_hit_r):.02f}, $\sigma$={np.std(res_hit_r):.02f}")
     plt.hist(res_hit_sp,bins=100,range=(-100,200),alpha=0.7,label=rf"SP Res, $\mu$={np.median(res_hit_sp):.02f}, $\sigma$={np.std(res_hit_sp):.02f}")
     plt.legend(loc='upper right')
     plt.title("Per Hit, raw-true/true <500%")
     plt.show()
-    
+
     d1 = np.array(dif1)
     d2 = np.array(dif2)
-    
+
     plt.hist(d1,bins=50,range=(-100,100),alpha=0.7,label=rf"$\mu$={np.mean(d1):.02f}")
     plt.legend(loc='upper right')
     plt.title("Raw-SP / Raw , %  in hits without True charge")
@@ -1072,8 +1075,8 @@ def eval_tred_true(ctx,input):
     plt.title("Per Hit Left")
     plt.legend(loc='upper right')
     plt.show()
-            
-    
+
+
 
 def main():
     cli(obj=None)

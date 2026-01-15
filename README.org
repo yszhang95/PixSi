@@ -8,15 +8,12 @@ This package provides charge reconstruction of pixle-based LarTPC detectors
 
 * Install
 
-~PixSi~ installs in the "usual Python way".  Use of ~pip~ and a Python
-virtual environment is recommended.
+PixSi uses UV package management.
 
+Installation:
 #+begin_example
-python3 -m venv venv
-source venv/bin/activiate
-git clone https://github.com/rennney/PixSi.git
-cd PixSi
-pip install -e .
+uv sync
+source .venv/bin/activate
 #+end_example
 
 * Usage
